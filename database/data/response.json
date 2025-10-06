@@ -1,0 +1,59 @@
+{
+    "regions": [
+        {
+            "nom": "Dakar",
+            "departements": [
+                {
+                    "nom": "Dakar",
+                    "communes": ["Plateau", "Médina", "Gueule Tapée-Fass-Colobane", "Fann-Point E-Amitié"]
+                },
+                {
+                    "nom": "Pikine",
+                    "communes": ["Dalifort", "Thiaroye", "Guinaw Rail", "Yeumbeul"]
+                },
+                {
+                    "nom": "Guédiawaye",
+                    "communes": ["Golf Sud", "Sam Notaire", "Wakhinane Nimzatt"]
+                },
+                {
+                    "nom": "Rufisque",
+                    "communes": ["Rufisque Est", "Rufisque Ouest", "Rufisque Nord"]
+                }
+            ]
+        },
+        {
+            "nom": "Thiès",
+            "departements": [
+                {
+                    "nom": "Thiès",
+                    "communes": ["Thiès Est", "Thiès Ouest", "Thiès Nord"]
+                },
+                {
+                    "nom": "Mbour",
+                    "communes": ["Mbour", "Saly", "Ngaparou", "Joal-Fadiouth"]
+                },
+                {
+                    "nom": "Tivaouane",
+                    "communes": ["Tivaouane", "Mékhé", "Pambal"]
+                }
+            ]
+        },
+        {
+            "nom": "Saint-Louis",
+            "departements": [
+                {
+                    "nom": "Saint-Louis",
+                    "communes": ["Saint-Louis", "Gandon", "Mpal"]
+                },
+                {
+                    "nom": "Dagana",
+                    "communes": ["Dagana", "Richard-Toll", "Rosso-Sénégal"]
+                },
+                {
+                    "nom": "Podor",
+                    "communes": ["Podor", "Galoya", "Mboumba"]
+                }
+            ]
+        }
+    ]
+}
