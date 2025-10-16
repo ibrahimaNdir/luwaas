@@ -17,17 +17,16 @@ return new class extends Migration
             $table->string('nom');
             $table->string('telephone')->unique();
             $table->string('email')->unique();
-            $table->string('password');
+            $table->string('password'); // mot de passe hashé en backend
             $table->boolean('is_active')->default(true);
             $table->enum('user_type', ['proprietaire', 'locataire', 'admin']);
-            $table->json('profile')->nullable(); // optionnel pour infos supplémentaires
-            $table->rememberToken(); // utile pour l’auth Laravel
+            $table->json('profile')->nullable(); // infos supplémentaires flexibles (adresse, photo, etc.)
+            $table->rememberToken(); // pour l’auth Laravel (sessions/cookies)
             $table->timestamps();
 
-            // Index utile
-            $table->index('user_type');
-
+            $table->index('user_type'); // optimisation des requêtes par rôle
         });
+
     }
 
     /**

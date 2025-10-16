@@ -12,14 +12,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('locataires', function (Blueprint $table) {
-
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('locataire_id')->unique();
-            $table->boolean('is_actif')->default(true);
-            $table->timestamps();
 
+            // Lien avec la table users
+            $table->foreignId('user_id')
+                ->constrained('users')
+                ->onDelete('cascade');
+
+            $table->string('locataire_id')->unique(); // Identifiant unique propre au locataire
+            $table->boolean('is_actif')->default(true); // Activation/désactivation sans suppression
+
+            $table->timestamps();
         });
+
     }
 
     /**

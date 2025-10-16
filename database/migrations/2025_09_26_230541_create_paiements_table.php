@@ -25,14 +25,24 @@ return new class extends Migration
 
             // Montant attendu
             $table->decimal('montant_attendu', 10, 2);
+            $table->decimal('montant_paye', 10, 2)->default(0); // montant payé
+            $table->decimal('montant_restant', 10, 2)->default(0); // reste à payer
 
-            // Statut métier
-            $table->enum('statut', ['en_attente', 'valide', 'partiel', 'en_retard'])
-                ->default('en_attente');
+
+
+
+            $table->enum('statut', ['payé', 'partiel', 'en_retard', 'impayé'])
+                ->default('en_retard');
+
 
             // Échéance
-            $table->integer('mois');   // ex: 10
-            $table->integer('annee');  // ex: 2025
+            $table->date('date_echeance');   // ex: 2025-02-05 (échéance de février)
+            $table->date('date_paiement')->nullable(); // ex: 2025-04-10 (payé en avril)
+            $table->string('periode')->nullable(); // ex: "Février 2025"
+
+            $table->index('bail_id');
+            $table->index('locataire_id');
+            $table->index('statut');
 
             $table->timestamps();
         });

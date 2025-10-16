@@ -24,14 +24,15 @@ class ProprieteRequest extends FormRequest
     {
         return [
             'titre'         => 'required|string|max:255',
-            'type'          => 'required|string|max:100', // maison, immeuble, terrain...
+            'type'          => 'required|in:maison,immeuble,villa',
             'description'   => 'nullable|string',
-            // Localisation
             'region_id'     => 'required|exists:regions,id',
             'departement_id'=> 'required|exists:departements,id',
             'commune_id'    => 'required|exists:communes,id',
+            'adresse'       => 'nullable|string',
+            'latitude'      => 'nullable|numeric',
+            'longitude'     => 'nullable|numeric',
 
-            //
         ];
     }
     public function messages(): array

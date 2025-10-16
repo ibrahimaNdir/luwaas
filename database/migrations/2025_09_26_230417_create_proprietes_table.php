@@ -14,13 +14,12 @@ return new class extends Migration
         Schema::create('proprietes', function (Blueprint $table) {
             $table->id();
 
-
             // Relation avec le propriétaire
             $table->foreignId('proprietaire_id')
                 ->constrained('proprietaires')
                 ->onDelete('cascade');
 
-            // Localisation (clés étrangères)
+            // Localisation (clés étrangères vers tables administratives)
             $table->foreignId('region_id')
                 ->constrained('regions')
                 ->onDelete('restrict');
@@ -35,13 +34,20 @@ return new class extends Migration
 
             // Infos générales sur la propriété
             $table->string('titre'); // ex: "Immeuble Médina"
-            $table->string('type');  // maison, appartement, immeuble, terrain, etc.
-            $table->text('description')->nullable();
+            $table->enum('type', ['maison','immeuble', 'villa'])->default('maison');
+            $table->string('adresse')->nullable(); // optionnel : adresse postale complète
+            $table->string('description')->nullable();
 
 
+
+
+            // Coordonnées géographiques pour géolocalisation précise
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
 
             $table->timestamps();
         });
+
     }
 
     /**

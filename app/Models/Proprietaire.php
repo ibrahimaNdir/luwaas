@@ -10,7 +10,8 @@ class Proprietaire extends Model
         'user_id',
         'proprietaire_id',
         'is_actif',
-        'nombre_proprietes',
+        'cni'
+
     ];
 
     protected $casts = [
@@ -20,6 +21,8 @@ class Proprietaire extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+
+
     }
 
     public function proprietes()

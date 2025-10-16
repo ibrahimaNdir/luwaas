@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens; // 👈 important
+
 
 class User extends Authenticatable
 {
-    use Notifiable;
+
+    use HasApiTokens, Notifiable;
 
     protected $fillable = [
         'prenom',
@@ -34,6 +37,8 @@ class User extends Authenticatable
     public function proprietaire()
     {
         return $this->hasOne(Proprietaire::class);
+
+
     }
 
     public function locataire()

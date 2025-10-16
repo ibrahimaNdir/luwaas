@@ -11,10 +11,13 @@ class Logement extends Model
         'numero',
         'superficie',
         'description',
-        'is_occupe',
         'nombre_pieces',
         'meuble',
         'etat',
+        'typelogement',
+        'prix_indicatif',
+        'statut_occupe',
+        'statut_publication',
     ];
 
     protected $casts = [
@@ -32,8 +35,11 @@ class Logement extends Model
         return $this->hasMany(Bail::class);
     }
 
-    public function invitations()
+    public function photos()
     {
-        return $this->hasMany(Invitation::class);
+        return $this->hasMany(PhotoLogement::class);
     }
+
+
+
 }

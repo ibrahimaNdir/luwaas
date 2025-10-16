@@ -33,10 +33,29 @@ class PropertyController extends Controller
      */
     public function store(ProprieteRequest $request)
     {
+        $proprietaire = auth()->user()->proprietaire;
 
-        $propriete  =  $this->propertyService->store($request->validated());
-        return response()->json($propriete,201);
+        if (!$proprietaire) {
+            return response()->json(['message' => 'Utilisateur non lié à un compte propriétaire.'], 403);
+        }
+
+        try {
+            $data = $request->validated();
+            $data['proprietaire_id'] = $proprietaire->id;
+
+            $propriete = Propriete::create($data);
+
+            return response()->json([
+                'message' => 'Propriété ajoutée avec succès',
+                'propriete' => $propriete
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Erreur lors de la création de la propriété : ' . $e->getMessage()
+            ], 500);
+        }
     }
+
 
     /**
      * Display the specified resource.
@@ -61,6 +80,47 @@ class PropertyController extends Controller
     {
         Propriete::destroy($id);
         return response()->json("",204);
-        //
     }
+    public function countProperty(Request $request)
+    {
+        $ownerId = $request->user()->proprietaire->id;
+        $count = $this->propertyService->countByOwner($ownerId);
+
+        return response()->json(['total_proprietes' => $count], 200);
+    }
+
+
+
+    // ✅ Dashboard du propriétaire connecté
+    public function dashboard(Request $request)
+    {
+        $ownerId = $request->user()->proprietaire->id;
+        $stats = $this->propertyService->dashboard($ownerId);
+
+        return response()->json($stats, 200);
+    }
+
+
+    // ✅ Rechercher / filtrer les propriétés d’un propriétaire
+    public function search(Request $request)
+    {
+        $ownerId = $request->user()->id;
+        $filters = $request->only(['region_id', 'type']);
+        $results = $this->propertyService->search($filters, $ownerId);
+
+        return response()->json($results, 200);
+    }
+
+    // ✅ Lister les propriétés d’un propriétaire
+    public function allProperty(Request $request)
+    {
+        $ownerId = $request->user()->proprietaire->id;
+        $proprietes = $this->propertyService->indexByOwner($ownerId);
+
+        return response()->json($proprietes, 200);
+    }
+
+
+
+
 }

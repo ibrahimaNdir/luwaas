@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('notifications', function (Blueprint $table) {
 
-
             $table->id();
 
             // Destinataire de la notification

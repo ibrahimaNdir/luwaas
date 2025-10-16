@@ -13,13 +13,18 @@ return new class extends Migration
     {
         Schema::create('proprietaires', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('proprietaire_id')->unique();
-            $table->boolean('is_actif')->default(true);
-            $table->integer('nombre_proprietes')->default(0);
 
+            $table->foreignId('user_id')
+                ->constrained('users')
+                ->onDelete('cascade'); // suppression en cascade si utilisateur supprimé
+
+            $table->string('proprietaire_id')->unique(); // identifiant propre au propriétaire (ex: ID interne)
+            $table->string('cni')->unique();              // Carte Nationale d’Identité, unique obligatoire
+            $table->boolean('is_actif')->default(true);  // pour désactivation sans suppression
             $table->timestamps();
         });
+
+
     }
 
     /**

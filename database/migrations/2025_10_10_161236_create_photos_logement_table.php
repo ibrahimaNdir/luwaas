@@ -11,15 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('admins', function (Blueprint $table) {
+        Schema::create('photos_logements', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('admin_id')->unique();
-            $table->string('username')->unique();
-            $table->boolean('is_active')->default(true); // activation/désactivation
-            $table->timestamps();
-        });
+            $table->foreignId('logement_id')
+                ->constrained('logements')
+                ->onDelete('cascade');
 
+            $table->string('url');
+            $table->boolean('principale')->default(false);
+            $table->integer('ordre')->default(1);
+
+            $table->timestamps();
+
+        });
     }
 
     /**
@@ -27,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('admin');
+        Schema::dropIfExists('photos_logement');
     }
 };

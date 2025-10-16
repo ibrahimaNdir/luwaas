@@ -12,34 +12,30 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('logements', function (Blueprint $table) {
-            // Clé primaire
-            $table->id(); // auto-incrémentée
-
-
-            // Attributs métier
-            $table->string('numero'); // ex: Appartement A1, Studio B2
+            $table->id();
+            // Informations liées au logement
+            $table->string('numero');
             $table->float('superficie')->nullable();
-            $table->text('description')->nullable();
-            $table->boolean('is_occupe')->default(false);
-
-            // Relation avec la propriété
-            $table->foreignId('propriete_id')
-                ->constrained('proprietes')
-                ->onDelete('cascade');
-
-            // Attributs additionnels
             $table->integer('nombre_pieces')->nullable();
             $table->boolean('meuble')->default(false);
-            $table->enum('etat', ['excellent', 'bon', 'moyen', 'renovation_requise'])
-                ->default('bon');
+            $table->enum('etat', ['excellent', 'bon', 'moyen', 'renovation_requise'])->default('bon');
+            $table->enum('typelogement', ['studio', 'appartement', 'maison', 'villa'])->default('maison');
+            $table->text('description')->nullable();
+            $table->decimal('prix_indicatif', 10, 2)->nullable()->default(null);
 
-            // Contraintes et index
-            $table->unique(['propriete_id', 'numero']); // Numéro unique par propriété
-            $table->index('is_occupe');
+            // Statuts
+            $table->enum('statut_occupe', ['disponible', 'occupe', 'reserve'])->default('disponible');
+            $table->enum('statut_publication', ['brouillon', 'publie'])->default('brouillon');
 
+            $table->foreignId('propriete_id')->constrained('proprietes')->onDelete('cascade');
+
+            $table->unique(['propriete_id', 'numero']);
+            $table->index('statut_occupe');
+            $table->index('statut_publication');
 
             $table->timestamps();
         });
+
     }
     /**
      * Reverse the migrations.

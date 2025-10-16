@@ -13,7 +13,10 @@ class Propriete extends Model
         'commune_id',
         'titre',
         'type',
+        'adresse',
         'description',
+        'latitude',
+        'longitude',
     ];
 
     public function proprietaire()
