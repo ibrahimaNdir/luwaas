@@ -1,70 +1,145 @@
-<<<<<<< HEAD
-# luwaas
-=======
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Luwaas Backend - Documentation complète
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Présentation
 
-## About Laravel
+Luwaas est une plateforme digitale innovante de gestion locative adaptée au contexte sénégalais.  
+Ce backend Laravel propose une API REST sécurisée pour gérer les utilisateurs, les logements, les demandes de location, les baux, et les paiements intégrés. L’objectif est de faciliter la relation entre locataires et bailleurs de manière fluide, traçable et professionnelle.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+***
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Fonctionnalités détaillées
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Gestion des utilisateurs
 
-## Learning Laravel
+- Inscription et connexion sécurisées avec Laravel Sanctum
+- Gestion des rôles : **locataire, bailleur (propriétaire), admin**
+- Contrôle d’accès rigoureux via middleware
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### Recherche de logements (côté locataire)
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+- Recherche **par filtres** géographiques (région, département, commune)
+- Recherche **par type de logement** (villa, appartement, studio)
+- Recherche **géolocalisée**, proximité réelle via coordonnées GPS
+- Affichage uniquement des logements **disponibles** et publiés
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 2000 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Demandes de location
 
-## Laravel Sponsors
+- Le locataire connecté fait une demande pour un logement (POST `/api/locataire/demandes`)
+- Le bailleur reçoit et gère les demandes (GET `/api/proprietaire/demandes`)
+- Historique complet des demandes pour chaque utilisateur  
+- Trace même les appels manqués ou non répondu
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+### Gestion des baux
 
-### Premium Partners
+- Création de bail liée au logement, locataire, et bailleur
+- Champs détaillés : loyer mensuel, caution, charges, durée, échéance, renouvellement automatique
+- Statuts gérés : actif, résilié, suspendu, expiré, en attente
+- Génération et impression PDF personnalisée conforme au modèle sénégalais  
+- Suivi des baux côté locataire et bailleur
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+### Paiements
 
-## Contributing
+- Gestion intégrée des paiements de loyers et cautions via Wave, Orange Money, espèces
+- Notification des paiements et mises à jour des statuts
+- Historique des transactions lié à chaque bail
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+***
 
-## Code of Conduct
+## Architecture & Technologie
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- **Backend** : Laravel 9+, API REST, Sanctum (auth), Eloquent ORM
+- **Base de données** : MySQL ou PostgreSQL
+- **Génération PDF** : barryvdh/laravel-dompdf
+- **Frontend mobile** : Flutter (projet séparé)
+- **API sécurisée** avec middleware rôle et validation forte
 
-## Security Vulnerabilities
+***
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Installation et configuration
 
-## License
+1. Cloner le dépôt backend :
+   ```bash
+   git clone <url-du-repo-backend>
+   cd backend
+   ```
+2. Installer les dépendances :
+   ```bash
+   composer install
+   ```
+3. Copier et configurer le fichier `.env` :
+   ```bash
+   cp .env.example .env
+   # Modifier les variables DB, mail, etc.
+   ```
+4. Générer la clé d’application :
+   ```bash
+   php artisan key:generate
+   ```
+5. Migrer et seed les tables :
+   ```bash
+   php artisan migrate --seed
+   ```
+6. (Optionnel) Installer dompdf pour génération PDF :
+   ```bash
+   composer require barryvdh/laravel-dompdf
+   ```
+7. Démarrer le serveur :
+   ```bash
+   php artisan serve
+   ```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
->>>>>>> 6eef99a (Initial commit)
+***
+
+## Endpoints API clés
+
+- **Auth** : `/register`, `/login`, `/logout`
+- **Logements** : filtres, recherche proche, gestion bailleur
+- **Demandes** :  
+  - Locataire POST `/locataire/demandes` (création demande)  
+  - Locataire GET `/locataire/demandes` (historique)  
+  - Bailleur GET `/proprietaire/demandes` (demandes reçues)
+- **Baux** : création, modification, consultation, impression PDF
+- **Paiements** : intégration Wave/Orange Money, historique, notifications
+
+***
+
+## Workflow utilisateur résumé
+
+### Locataire
+
+- S’inscrit et se connecte
+- Recherche logement par filtres ou proximité
+- Fait une demande d’appel au bailleur
+- Suit ses demandes dans l’historique
+- Consulte ses baux en cours avec détails financiers
+
+### Bailleur
+
+- S’inscrit et se connecte
+- Ajoute propriétés et logements
+- Reçoit et consulte les demandes des locataires
+- Crée et gère les baux
+- Génère et imprime les contrats PDF
+- Suit les paiements et relances locataires
+
+### Admin
+
+- Supervise les utilisateurs et contenus
+- Gère les validations et statistiques globales
+
+***
+
+## Contribution & support
+
+Contributions bienvenues via Pull Requests.  
+Pour toute question ou problème, ouvrir une issue.
+
+***
+
+## Contact
+
+Développeur principal : Ibrahima Ndir
+Email : ibrahimandir2410@gmail.com
+
+***
+
