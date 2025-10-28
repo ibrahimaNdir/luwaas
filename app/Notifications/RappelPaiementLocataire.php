@@ -7,7 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class RappelPaiement extends Notification
+class RappelPaiementLocataire extends Notification
 {
     use Queueable;
 

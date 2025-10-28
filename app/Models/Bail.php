@@ -14,8 +14,6 @@ class Bail extends Model
         'statut',
         'logement_id',
         'locataire_id',
-        'conditions_particulieres',
-        'clauses_additionnelles',
         'date_signature',
         'charges_mensuelles',
         'charges_incluses',

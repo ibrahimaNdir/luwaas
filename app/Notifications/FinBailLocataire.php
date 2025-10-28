@@ -7,7 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
-class InvitationAcceptee extends Notification
+class FinBailLocataire extends Notification
 {
     use Queueable;
 

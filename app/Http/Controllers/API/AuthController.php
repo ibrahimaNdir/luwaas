@@ -89,7 +89,9 @@ class AuthController extends Controller
             } else {
                 $profil = Locataire::create([
                     'user_id'      => $user->id,
+                    'cni'             => $request->cni,
                     'locataire_id' => 'LOC-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
+
                 ]);
             }
 
@@ -113,7 +115,8 @@ class AuthController extends Controller
                 'redirect' => $user->user_type === 'proprietaire'
                     ? '/dashboard-proprietaire'
                     : '/dashboard-locataire',
-            ]);
+            ], 201);
+
 
         }
         catch (\Exception $e) {

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProprieteRequest;
+use App\Http\Resources\ProprieteResource;
 use App\Models\Propriete;
 use App\Services\Proprietaire\PropertyService;
 use Illuminate\Http\Request;
+
 
 class PropertyController extends Controller
 {
@@ -33,6 +35,7 @@ class PropertyController extends Controller
      */
     public function store(ProprieteRequest $request)
     {
+
         $proprietaire = auth()->user()->proprietaire;
 
         if (!$proprietaire) {
@@ -104,7 +107,8 @@ class PropertyController extends Controller
     // ✅ Rechercher / filtrer les propriétés d’un propriétaire
     public function search(Request $request)
     {
-        $ownerId = $request->user()->id;
+        $ownerId = $request->user()->proprietaire->id;
+
         $filters = $request->only(['region_id', 'type']);
         $results = $this->propertyService->search($filters, $ownerId);
 
@@ -115,9 +119,10 @@ class PropertyController extends Controller
     public function allProperty(Request $request)
     {
         $ownerId = $request->user()->proprietaire->id;
+
         $proprietes = $this->propertyService->indexByOwner($ownerId);
 
-        return response()->json($proprietes, 200);
+        return ProprieteResource::collection($proprietes);
     }
 
 

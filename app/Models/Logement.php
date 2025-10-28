@@ -14,8 +14,8 @@ class Logement extends Model
         'nombre_pieces',
         'meuble',
         'etat',
-        'typelogement',
-        'prix_indicatif',
+        'type',
+        'prix_loyer',
         'statut_occupe',
         'statut_publication',
     ];
@@ -23,6 +23,10 @@ class Logement extends Model
     protected $casts = [
         'is_occupe' => 'boolean',
         'meuble' => 'boolean',
+    ];
+    protected $attributes = [
+        'statut_occupe' => 'disponible',       // par défaut le logement est disponible
+        'statut_publication' => 'brouillon',   // par défaut en brouillon
     ];
 
     public function propriete()

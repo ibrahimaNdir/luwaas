@@ -14,19 +14,6 @@ return new class extends Migration
         Schema::create('baux', function (Blueprint $table) {
             $table->id();
 
-            $table->decimal('montant_loyer', 10, 2);
-            $table->date('date_debut');
-            $table->date('date_fin');
-            $table->decimal('garantie', 10, 2)->default(0);
-
-            $table->enum('statut', [
-                'actif',
-                'expire',
-                'resilie',
-                'en_attente',
-                'suspendu'
-            ])->default('actif');
-
             $table->foreignId('logement_id')
                 ->constrained('logements')
                 ->onDelete('cascade');
@@ -35,12 +22,22 @@ return new class extends Migration
                 ->constrained('locataires')
                 ->onDelete('cascade');
 
-            $table->text('conditions_particulieres')->nullable();
-            $table->json('clauses_additionnelles')->nullable();
-            $table->date('date_signature')->nullable();
-            $table->decimal('charges_mensuelles', 8, 2)->default(0);
-            $table->boolean('charges_incluses')->default(false);
+            $table->integer('charges_mensuelles')->default(0);
+            $table->integer('caution')->default(0);
+            $table->integer('montant_loyer')->default(0);
+            $table->integer('cautions_a_payer')->default(0);
 
+
+
+            $table->date('date_debut');
+            $table->date('date_fin');
+            $table->enum('statut', [
+                'actif',
+                'expire',
+                'resilie',
+                'en_attente',
+                'suspendu'
+            ])->default('actif');
             $table->integer('jour_echeance')->default(1);
             $table->boolean('renouvellement_automatique')->default(false);
 

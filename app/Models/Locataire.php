@@ -9,8 +9,10 @@ class Locataire extends Model
     protected $fillable = [
         'user_id',
         'locataire_id',
+        'cni',
         'is_actif',
-        'proprietaire_id',
+
+
     ];
 
     protected $casts = [

@@ -4,6 +4,7 @@ namespace App\Services\Proprietaire;
 
 use App\Models\Logement;
 use App\Models\Propriete;
+use Illuminate\Http\UploadedFile;
 
 class LogementService
 {
@@ -31,9 +32,12 @@ class LogementService
         return Logement::find($id);
     }
 
-    public function update(array $data, $id)
+    public function update(array $data, $proprieteId, $logementId)
     {
-        $logement = Logement::find($id);
+        $logement = Logement::where('id', $logementId)
+            ->where('propriete_id', $proprieteId)
+            ->first();
+
         if (!$logement) {
             return null;
         }
@@ -41,15 +45,19 @@ class LogementService
         return $logement;
     }
 
-    public function destroy($id)
+    public function destroy($proprieteId, $logementId)
     {
-        $logement = Logement::find($id);
+        $logement = Logement::where('id', $logementId)
+            ->where('propriete_id', $proprieteId)
+            ->first();
+
         if (!$logement) {
             return false;
         }
         $logement->delete();
         return true;
     }
+
 
     public function search(array $filters)
     {
@@ -68,6 +76,13 @@ class LogementService
         return $query->get();
     }
 
+    public function getByProprieteAndId($proprieteId, $logementId)
+    {
+        return Logement::where('propriete_id', $proprieteId)
+            ->where('id', $logementId)
+            ->first();
+    }
+
     public function updateStatus($id, $statut)
     {
         $logement = Logement::find($id);
@@ -77,6 +92,7 @@ class LogementService
         $logement->update(['statut_publication' => $statut]);
         return $logement;
     }
+
 
     public function indexByPropriete($proprieteId)
     {
@@ -117,4 +133,14 @@ class LogementService
 
         return $photos;
     }
+
+    public function getPublishedLogementsByProprietaire($proprietaireId)
+    {
+        return Logement::where('statut_publication', 'publie')
+            ->whereHas('propriete', function ($query) use ($proprietaireId) {
+                $query->where('proprietaire_id', $proprietaireId);
+            })->get();
+    }
+
+
 }

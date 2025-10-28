@@ -36,9 +36,7 @@ class User extends Authenticatable
     // Relations
     public function proprietaire()
     {
-        return $this->hasOne(Proprietaire::class);
-
-
+        return $this->hasOne(Proprietaire::class, 'user_id');
     }
 
     public function locataire()

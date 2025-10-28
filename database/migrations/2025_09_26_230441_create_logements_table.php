@@ -19,9 +19,9 @@ return new class extends Migration
             $table->integer('nombre_pieces')->nullable();
             $table->boolean('meuble')->default(false);
             $table->enum('etat', ['excellent', 'bon', 'moyen', 'renovation_requise'])->default('bon');
-            $table->enum('typelogement', ['studio', 'appartement', 'maison', 'villa'])->default('maison');
+            $table->enum('type', ['studio', 'appartement', 'maison', 'villa'])->default('maison');
             $table->text('description')->nullable();
-            $table->decimal('prix_indicatif', 10, 2)->nullable()->default(null);
+            $table->integer('prix_loyer');
 
             // Statuts
             $table->enum('statut_occupe', ['disponible', 'occupe', 'reserve'])->default('disponible');

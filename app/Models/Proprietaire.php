@@ -18,12 +18,7 @@ class Proprietaire extends Model
         'is_actif' => 'boolean',
     ];
 
-    public function user()
-    {
-        return $this->belongsTo(User::class);
 
-
-    }
 
     public function proprietes()
     {
@@ -35,8 +30,9 @@ class Proprietaire extends Model
         return $this->hasMany(Document::class);
     }
 
-    public function invitations()
+    public function user()
     {
-        return $this->hasMany(Invitation::class);
+        return $this->belongsTo(User::class);
     }
+
 }
