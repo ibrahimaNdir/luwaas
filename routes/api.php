@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\BailController;
 use App\Http\Controllers\API\DemandeController;
 use App\Http\Controllers\API\GeoController;
 use App\Http\Controllers\API\LogementController;
@@ -44,6 +45,8 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/logements', [LogementController::class, 'index']);
     Route::get('/proprietes', [PropertyController::class, 'index']);
+    Route::get('/baux', [BailController::class, 'index']);
+
 
 
 });
@@ -88,6 +91,10 @@ Route::middleware(['auth:sanctum','proprietaire'])->prefix('proprietaire')->grou
 
     Route::get('/demandes', [DemandeController::class, 'demandesProprietaire']);
 
+    Route::post('/baux', [BailController::class, 'store']);
+    Route::get('/baux', [BailController::class, 'bauxBailleur']);
+    Route::get('/baux/{id}', [BailController::class, 'show']);
+
 
 
 });
@@ -99,6 +106,8 @@ Route::middleware('auth:sanctum')->prefix('locataire')->group(function () {
     Route::post('/demandes', [DemandeController::class, 'store']); // <-- POST pour créer une demande
     Route::get('/demandes', [DemandeController::class, 'demandesLocataire']); // <-- GET pour l’historique du locatair
     //Route::get('/logements/{id}', [LogementController::class, 'show']);
+    Route::get('/baux', [BailController::class, 'bauxLocataire']);
+    Route::get('/baux/{id}', [BailController::class, 'show']);
 });
 
 
