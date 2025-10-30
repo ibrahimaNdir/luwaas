@@ -29,8 +29,6 @@ return new class extends Migration
             $table->decimal('montant_restant', 10, 2)->default(0); // reste à payer
 
 
-
-
             $table->enum('statut', ['payé', 'partiel', 'en_retard', 'impayé'])
                 ->default('en_retard');
 

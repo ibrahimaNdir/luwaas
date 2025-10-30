@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Bail extends Model
 {
+    protected $table = 'baux';
+
     protected $fillable = [
         'montant_loyer',
         'date_debut',
@@ -19,6 +21,7 @@ class Bail extends Model
         'charges_incluses',
         'jour_echeance',
         'renouvellement_automatique',
+        'caution'
     ];
 
     protected $casts = [
@@ -39,6 +42,7 @@ class Bail extends Model
     {
         return $this->belongsTo(Locataire::class);
     }
+
 
     public function paiements()
     {

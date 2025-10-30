@@ -37,7 +37,7 @@ class BailController extends Controller
             'cautions_a_payer' => 'required|integer|min:0',
             'date_debut' => 'required|date',
             'date_fin' => 'required|date|after_or_equal:date_debut',
-            'jour_echeance' => 'required|integer|min:1|max:28',
+            'jour_echeance' => 'required|integer|min:1|max:10',
             'renouvellement_automatique' => 'required|boolean',
         ]);
 
