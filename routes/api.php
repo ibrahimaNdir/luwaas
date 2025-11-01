@@ -5,6 +5,7 @@ use App\Http\Controllers\API\BailController;
 use App\Http\Controllers\API\DemandeController;
 use App\Http\Controllers\API\GeoController;
 use App\Http\Controllers\API\LogementController;
+use App\Http\Controllers\API\PaiementController;
 use App\Http\Controllers\API\PropertyController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -94,6 +95,8 @@ Route::middleware(['auth:sanctum','proprietaire'])->prefix('proprietaire')->grou
     Route::post('/baux', [BailController::class, 'store']);
     Route::get('/baux', [BailController::class, 'bauxBailleur']);
     Route::get('/baux/{id}', [BailController::class, 'show']);
+    Route::delete('/bails/{id}', [BailController::class, 'destroy']);
+
 
 
 
@@ -108,6 +111,8 @@ Route::middleware('auth:sanctum')->prefix('locataire')->group(function () {
     //Route::get('/logements/{id}', [LogementController::class, 'show']);
     Route::get('/baux', [BailController::class, 'bauxLocataire']);
     Route::get('/baux/{id}', [BailController::class, 'show']);
+
+    Route::get('baux-paiement',[PaiementController::class, 'bauxAvecStatutPaiement']);
 });
 
 

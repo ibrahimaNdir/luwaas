@@ -13,6 +13,8 @@ class Paiement extends Model
         'statut',
         'mois',
         'annee',
+        'date_echeance' ,
+        'periode'
     ];
 
     public function bail()

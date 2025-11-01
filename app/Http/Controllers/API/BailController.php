@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\BailLocataireResource;
 use App\Http\Resources\BailProprietaireRessource;
 use App\Models\Bail;
+use App\Models\Paiement;
 use App\Services\Proprietaire\BailService;
 use Illuminate\Http\Request;
 
@@ -37,18 +38,43 @@ class BailController extends Controller
             'cautions_a_payer' => 'required|integer|min:0',
             'date_debut' => 'required|date',
             'date_fin' => 'required|date|after_or_equal:date_debut',
-            'jour_echeance' => 'required|integer|min:1|max:10',
+            'jour_echeance' => 'required|integer|min:1|max:31',
             'renouvellement_automatique' => 'required|boolean',
         ]);
 
+        // Création du bail
         $bail = Bail::create($validated);
+
+        // Génération automatique des paiements liés au bail
+        $start = \Carbon\Carbon::parse($validated['date_debut']);
+        $end   = \Carbon\Carbon::parse($validated['date_fin']);
+        $current = $start->copy();
+        while ($current <= $end) {
+            // Gérer le jour d’échéance qui existe selon le mois
+            $jour = min($validated['jour_echeance'], $current->copy()->endOfMonth()->day);
+            $dateEcheance = $current->copy()->day($jour);
+
+            // Format de la période "Novembre 2025"
+            $periode = $current->isoFormat('MMMM YYYY');
+
+            Paiement::create([
+                'locataire_id'    => $bail->locataire_id,
+                'bail_id'         => $bail->id,
+                'montant_attendu' => $bail->montant_loyer,
+                'statut'          => 'impayé',
+                'date_echeance'   => $dateEcheance,
+                'periode'         => $periode,
+            ]);
+            $current->addMonth();
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Bail créé avec succès.',
+            'message' => 'Bail créé avec succès et paiements générés !',
             'bail' => $bail
         ], 201);
     }
+
 
     // Voir tous les baux pour le bailleur connecté
     public function bauxBailleur(Request $request)
@@ -95,4 +121,18 @@ class BailController extends Controller
 
         return response()->json($bail);
     }
+
+    public function destroy($id)
+    {
+        $bail = Bail::findOrFail($id);
+
+        // Suppression du bail ; les paiements liés (avec bail_id) seront supprimés grâce au "cascade"
+        $bail->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Bail et paiements associés supprimés avec succès.'
+        ]);
+    }
+
 }
