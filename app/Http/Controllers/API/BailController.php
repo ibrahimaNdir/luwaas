@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\BailAdminRessource;
 use App\Http\Resources\BailLocataireResource;
 use App\Http\Resources\BailProprietaireRessource;
+use App\Http\Resources\BauxLocataireRessource;
 use App\Models\Bail;
 use App\Models\Paiement;
 use App\Services\Proprietaire\BailService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
 class BailController extends Controller
@@ -23,7 +26,7 @@ class BailController extends Controller
     public function index()
     {
         $offres =  $this->bailService->index();
-        return response()->json($offres,200);
+        return BailAdminRessource::collection($offres);
         //
     }
     // Création d’un bail côté bailleur
@@ -134,5 +137,48 @@ class BailController extends Controller
             'message' => 'Bail et paiements associés supprimés avec succès.'
         ]);
     }
+
+
+    public function bauxForLocataire(Request $request)
+    {
+        $user = $request->user();
+        $locataire_id = $user->locataire->id ?? null;
+        if (!$locataire_id) {
+            return response()->json(['message' => 'Non autorisé ou pas de profil locataire.'], 403);
+        }
+
+        $baux = Bail::with(['logement'])
+            ->where('locataire_id', $locataire_id)
+            ->orderByDesc('date_debut')
+            ->get();
+
+
+        return  BauxLocataireRessource::collection($baux);
+    }
+
+    public function paiementsBail(Request $request, $bailId)
+    {
+        $user = $request->user();
+        $bail = Bail::where('id', $bailId)
+            ->where('locataire_id', $user->id) // sécurité : bail appartient au locataire
+            ->firstOrFail();
+
+        $paiements = $bail->paiements; // liste de tous les paiements liés à ce bail
+
+        return response()->json($paiements);
+    }
+
+    public function exportPdf($bailId)
+    {
+        $bail = Bail::findOrFail($bailId); // récupère le bail
+        $pdf = PDF::loadView('bail_pdf', compact('bail'));
+        return $pdf->download('bail-'.$bail->id.'.pdf');
+    }
+
+
+
+
+
+
 
 }

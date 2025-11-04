@@ -136,4 +136,10 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Déconnexion réussie']);
     }
+    public function index()
+    {
+        $offres =  $this->authService->index();
+        return response()->json($offres,200);
+        //
+    }
 }

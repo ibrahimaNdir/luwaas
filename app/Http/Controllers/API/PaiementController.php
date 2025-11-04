@@ -3,10 +3,20 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\PaiementProprietaireRessource;
+use App\Models\Paiement;
+use App\Services\Proprietaire\PaiementService;
 use Illuminate\Http\Request;
 
 class PaiementController extends Controller
 {
+    protected $paiementService;
+
+    public function __construct(PaiementService $paiementService)
+    {
+        $this->paiementService= $paiementService;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -103,6 +113,30 @@ class PaiementController extends Controller
 
         return response()->json($data);
     }
+
+    public function paiementsForBailleur(Request $request)
+    {
+        $proprioId = $request->user()->id;
+
+        $paiements = Paiement::whereHas('bail.logement.propriete', function ($query) use ($proprioId) {
+            $query->where('proprietaire_id', $proprioId); // champ de la table propriétés
+        })->with('bail', 'bail.logement', 'bail.logement.propriete', 'locataire')->get();
+
+        return response()->json($paiements);
+    }
+
+
+    public function indexByBail($bailId)
+    {
+        $logements = $this->paiementService->indexByBail($bailId);
+
+        // ✅ Retourne une collection de Resources
+        return PaiementProprietaireRessource::collection($logements);
+    }
+
+
+
+
 
 
 }

@@ -26,7 +26,8 @@ class PropertyController extends Controller
     public function index()
     {
         $offres =  $this->propertyService->index();
-        return response()->json($offres,200);
+
+        return ProprieteResource::collection($offres);
         //
     }
 

@@ -38,12 +38,12 @@ class LogementProprietaireResource extends JsonResource
             'propriete' => [
                 'adresse' => $this->propriete->adresse,
                 'commune' => $this->propriete->commune->nom,
-                'communeid' => $this->propriete->commune->id,
+               // 'communeid' => $this->propriete->commune->id,
                 'departement' => $this->propriete->region->nom,
-                'departementid' => $this->propriete->region->id,
+               // 'departementid' => $this->propriete->region->id,
 
                 'region' => $this->propriete->region->nom,
-                'regionid' => $this->propriete->region->id,
+               // 'regionid' => $this->propriete->region->id,
             ],
             'localisation' => [
                 'longtitude'=>$this->propriete->longitude,

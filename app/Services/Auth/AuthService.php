@@ -8,6 +8,11 @@ use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
+    public function index()
+    {
+        return User::all();
+    }
+
     public function login(array $credentials)
     {
         $user = User::where('email', $credentials['login'])

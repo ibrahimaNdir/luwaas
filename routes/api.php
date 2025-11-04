@@ -47,10 +47,14 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/logements', [LogementController::class, 'index']);
     Route::get('/proprietes', [PropertyController::class, 'index']);
     Route::get('/baux', [BailController::class, 'index']);
+    Route::get('/demande', [DemandeController::class, 'index']);
+    Route::get('/paiement', [PaiementController::class, 'index']);
+    Route::get('/users', [AuthController::class, 'index']);
 
 
 
 });
+// Route qui appartiennent le Proprietaire
 
 Route::middleware(['auth:sanctum','proprietaire'])->prefix('proprietaire')->group(function () {
     Route::get('/regions', [GeoController::class, 'regions']);
@@ -74,45 +78,84 @@ Route::middleware(['auth:sanctum','proprietaire'])->prefix('proprietaire')->grou
 
     // Ajouter un Logement lier a une propriete
     Route::post('/proprietes/{proprieteId}/logements', [LogementController::class, 'store']);
+
     // Faire La mise a jour d'un logement
     Route::put('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'update']);
+
     // Supprimer un Logement d'une propriete
     Route::delete('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'destroy']);
+
     Route::get('/logements/search', [LogementController::class, 'search']);
+
     // Liste de tout les logements d'une propriete
     Route::get('/proprietes/{proprieteId}/logements', [LogementController::class, 'indexByPropriete']);
+
     // Le nombre de logement d'une propriete
     Route::get('/proprietes/{proprieteId}/logements/count', [LogementController::class, 'countByPropriete']);
+
     // route qui permet de publier ton logement
     Route::patch('/proprietes/{proprieteId}/logements/{id}/status', [LogementController::class, 'updateStatusPublication']);
 
+    // Route qui te permet d'ajouter tes photos
     Route::post('/proprietes/{proprieteId}/logements/{id}/photos', [LogementController::class, 'addPhotos']);
 
+    // Route qui te permet de voir tous lesogement que t'as publier
     Route::get('/mes-logements/publies', [LogementController::class, 'getPublishedLogementsByProprietaire']);
 
+    // Route qui affiches tous les demandes faite par les Locataire
     Route::get('/demandes', [DemandeController::class, 'demandesProprietaire']);
 
+    // Route qui te permet de creer les bail
     Route::post('/baux', [BailController::class, 'store']);
+
+    // Route qui te permet d'afficher tous la bail que t'as creer
     Route::get('/baux', [BailController::class, 'bauxBailleur']);
+
+    // Details Bails
     Route::get('/baux/{id}', [BailController::class, 'show']);
+
+    // Supprimer Bail
     Route::delete('/bails/{id}', [BailController::class, 'destroy']);
+
+    Route::get('paiements',[PaiementController::class, 'paiementsForBailleur']);
 
 
 
 
 });
+// Les Routes qui appartient le Locataire
 
 // Routes protégées par authentification
 Route::middleware('auth:sanctum')->prefix('locataire')->group(function () {
-    Route::get('/logements/nearby', [LogementController::class, 'nearby']);
-    Route::get('/logements/search', [LogementController::class, 'searchzone']);
-    Route::post('/demandes', [DemandeController::class, 'store']); // <-- POST pour créer une demande
-    Route::get('/demandes', [DemandeController::class, 'demandesLocataire']); // <-- GET pour l’historique du locatair
-    //Route::get('/logements/{id}', [LogementController::class, 'show']);
-    Route::get('/baux', [BailController::class, 'bauxLocataire']);
-    Route::get('/baux/{id}', [BailController::class, 'show']);
 
-    Route::get('baux-paiement',[PaiementController::class, 'bauxAvecStatutPaiement']);
+    // Recherche a partir de ta position
+    Route::get('/logements/nearby', [LogementController::class, 'nearby']);
+
+    // Recherche a partir d'une zone
+    Route::get('/logements/search', [LogementController::class, 'searchzone']);
+
+    // Faire demande de Location
+    Route::post('/demandes', [DemandeController::class, 'store']); //
+
+    // Afficher tous les demande que t'as faite
+    Route::get('/demandes', [DemandeController::class, 'demandesLocataire']);
+
+    //Route::get('/logements/{id}', [LogementController::class, 'show']);
+
+    // Liste tous les Bails qui te concerne
+    Route::get('/baux', [BailController::class, 'bauxLocataire']);
+
+   // Route::get('/baux/{id}', [BailController::class, 'show']);
+
+    // Route qui te redrige de payer ton location
+    Route::get('/baux/{bailId}/paiements',[PaiementController::class, 'indexByBail']);
+
+    // Route qui te permet de lister tous les bail pour ensuite selectionner l'un est payer
+    Route::get('paiementbaux',[BailController::class, 'bauxForLocataire']);
+
+
+    Route::get('/baux/{id}/export-pdf', [BailController::class, 'exportPdf']);
+
 });
 
 

@@ -11,5 +11,10 @@ class BailService
         return Bail::all();
     }
 
+    public function indexByPaiement($proprieteId)
+    {
+        return Bail::where('locataire_id', $proprieteId)->get();
+    }
+
 
 }
