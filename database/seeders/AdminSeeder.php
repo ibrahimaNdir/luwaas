@@ -17,12 +17,12 @@ class AdminSeeder extends Seeder
     {
 
         $user = User::firstOrCreate(
-            ['email' => 'admin@example.com'],
+            ['email' => 'admins@example.com'],
             [
                 'prenom' => 'Super',
-                'nom' => 'Admin',
-                'telephone' => '771234567',
-                'password' => Hash::make('password123'),
+                'nom' => 'Admins',
+                'telephone' => '771234569',
+                'password' => Hash::make('passwords123'),
                 'user_type' => 'admin',
                 'is_active' => true,
             ]
@@ -31,8 +31,8 @@ class AdminSeeder extends Seeder
         Admin::firstOrCreate(
             ['user_id' => $user->id],
             [
-                'admin_id' => 'ADM001',
-                'username' => 'superadmin',
+                'admin_id' => 'ADM002',
+                'username' => 'superadmins',
             ]
         );
 

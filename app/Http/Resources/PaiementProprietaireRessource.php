@@ -11,13 +11,11 @@ class PaiementProprietaireRessource extends JsonResource
 
             // 'id' => $this->id,
             'logement' => [
-               // 'id'         => $this->id,
+               //  'id'         => $this->id,
                 'titre'      => $this->periode,
                 'adresse'    => $this->statut,
                 'date '      =>$this->date_echeance ,
                 'montant'   =>$this->montant_attendu
-
-
                 // Ajoute d'autres champs utiles selon ton modèle logement
             ],
 

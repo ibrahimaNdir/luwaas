@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\PaiementAdminRessource;
+use App\Http\Resources\PaiementLocataireRessource;
 use App\Http\Resources\PaiementProprietaireRessource;
+use App\Models\Bail;
 use App\Models\Paiement;
 use App\Services\Proprietaire\PaiementService;
 use Illuminate\Http\Request;
@@ -22,6 +25,8 @@ class PaiementController extends Controller
      */
     public function index()
     {
+        $offres =  $this->paiementService->index();
+        return PaiementAdminRessource::collection($offres);
         //
     }
 
@@ -128,11 +133,25 @@ class PaiementController extends Controller
 
     public function indexByBail($bailId)
     {
-        $logements = $this->paiementService->indexByBail($bailId);
+        $user = auth()->user();
+        $locataireId = $user->locataire->id;
 
-        // ✅ Retourne une collection de Resources
-        return PaiementProprietaireRessource::collection($logements);
+        // Vérifie que le bail appartient au locataire connecté
+        $bail = Bail::where('id', $bailId)
+            ->where('locataire_id', $locataireId)
+            ->first();
+
+        if (!$bail) {
+            return response()->json([
+                'message' => 'Accès refusé : ce bail ne vous appartient pas.'
+            ], 403);
+        }
+
+        // Récupère tous les paiements liés à ce bail
+        $paiements = Paiement::where('bail_id', $bailId)->get();
+        return PaiementLocataireRessource::collection($paiements);
     }
+
 
 
 

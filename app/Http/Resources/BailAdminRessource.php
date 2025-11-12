@@ -28,22 +28,22 @@ class BailAdminRessource extends JsonResource
             ],
             'bailleur' => [
                 // 'id'         => $this->locataire->id,
-                'nom'        => $this->proprietaire->user->nom,
-                'telephone'  => $this->proprietaire->user->telephone,
-                'prenom'     => $this->proprietaire->user->prenom
+                'nom'        => $this->logement->propriete->proprietaire->user->prenom ,
+                'telephone'  => $this->logement->propriete->proprietaire->user->telephone ,
+                'prenom'     => $this->logement->propriete->proprietaire->user->prenom ,
                 //'email'      => $this->locataire->email,
                 // Ajoute autre info pertinente
             ],
-            'charges_mensuelles'   => $this->charges_mensuelles,
-            'caution'              => $this->caution,
+            //'charges_mensuelles'   => $this->charges_mensuelles,
+            //'caution'              => $this->caution,
             'montant_loyer'        => $this->montant_loyer,
-            'cautions_a_payer'     => $this->cautions_a_payer,
+            //'cautions_a_payer'     => $this->cautions_a_payer,
             'date_debut'           => Carbon::parse($this->date_debut)->format('Y-m-d'),
             'date_fin'             => Carbon::parse($this->date_fin)->format('Y-m-d'),
-            'jour_echeance'        => $this->jour_echeance,
+            //'jour_echeance'        => $this->jour_echeance,
             'renouvellement'       => $this->renouvellement_automatique,
             'statut'               => $this->statut_dynamique,  // <-- toujours à jour côté API !
-            'statut_db'            => $this->statut,
+            //'statut_db'            => $this->statut,
 
 
 

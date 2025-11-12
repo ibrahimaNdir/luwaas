@@ -98,7 +98,6 @@ Route::middleware(['auth:sanctum','proprietaire'])->prefix('proprietaire')->grou
 
     // Route qui te permet d'ajouter tes photos
     Route::post('/proprietes/{proprieteId}/logements/{id}/photos', [LogementController::class, 'addPhotos']);
-
     // Route qui te permet de voir tous lesogement que t'as publier
     Route::get('/mes-logements/publies', [LogementController::class, 'getPublishedLogementsByProprietaire']);
 
@@ -144,17 +143,20 @@ Route::middleware('auth:sanctum')->prefix('locataire')->group(function () {
 
     // Liste tous les Bails qui te concerne
     Route::get('/baux', [BailController::class, 'bauxLocataire']);
+    // details du bails
+     Route::get('/baux/{id}', [BailController::class, 'show']);
+    // Route qui te permet de lister tous les bail pour ensuite selectionner l'un des bail et payer
+    Route::get('/bauxpaie',[BailController::class, 'bauxForLocataire']);
 
-   // Route::get('/baux/{id}', [BailController::class, 'show']);
+
 
     // Route qui te redrige de payer ton location
     Route::get('/baux/{bailId}/paiements',[PaiementController::class, 'indexByBail']);
 
-    // Route qui te permet de lister tous les bail pour ensuite selectionner l'un est payer
-    Route::get('paiementbaux',[BailController::class, 'bauxForLocataire']);
 
 
-    Route::get('/baux/{id}/export-pdf', [BailController::class, 'exportPdf']);
+
+   // Route::get('/baux/{id}/export-pdf', [BailController::class, 'exportPdf']);
 
 });
 

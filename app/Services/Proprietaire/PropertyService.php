@@ -100,7 +100,7 @@ class PropertyService
             'total_logements'        => $totalLogements,
             'total_logements_occupe' => $totalLogementsOccupe,
             'total_logements_disponible' => $totalLogementsDispo,
-            'proprietes'             => $proprietes
+           // 'proprietes'             => $proprietes
         ];
     }
 

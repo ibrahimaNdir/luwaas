@@ -102,6 +102,7 @@ class PropertyController extends Controller
         $stats = $this->propertyService->dashboard($ownerId);
 
         return response()->json($stats, 200);
+
     }
 
 

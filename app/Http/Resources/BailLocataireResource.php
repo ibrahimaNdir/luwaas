@@ -18,7 +18,8 @@ class BailLocataireResource extends JsonResource
         return [
             // 'id' => $this->id,
             'logement' => [
-              //  'id'         => $this->logement->id,
+                //'ids'=> $this->locataire->id,
+               //'id'         => $this->id,
                 'titre'      => $this->logement->propriete->titre,
                 'adresse'    => $this->logement->propriete->adresse,
                 'type'       => $this->logement->propriete->type,

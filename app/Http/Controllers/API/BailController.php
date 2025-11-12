@@ -8,9 +8,11 @@ use App\Http\Resources\BailLocataireResource;
 use App\Http\Resources\BailProprietaireRessource;
 use App\Http\Resources\BauxLocataireRessource;
 use App\Models\Bail;
+use App\Models\Logement;
 use App\Models\Paiement;
 use App\Services\Proprietaire\BailService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class BailController extends Controller
@@ -48,16 +50,21 @@ class BailController extends Controller
         // Création du bail
         $bail = Bail::create($validated);
 
+        // MAJ du statut du logement en "occupé"
+        $logement = Logement::find($validated['logement_id']);
+        if ($logement) {
+            $logement->statut_occupe = 'occupe'; // ou 1 si tu utilises un entier/boolean
+            $logement->save();
+        }
+
         // Génération automatique des paiements liés au bail
-        $start = \Carbon\Carbon::parse($validated['date_debut']);
-        $end   = \Carbon\Carbon::parse($validated['date_fin']);
+        $start = Carbon::parse($validated['date_debut']);
+        $end   = Carbon::parse($validated['date_fin']);
         $current = $start->copy();
+
         while ($current <= $end) {
-            // Gérer le jour d’échéance qui existe selon le mois
             $jour = min($validated['jour_echeance'], $current->copy()->endOfMonth()->day);
             $dateEcheance = $current->copy()->day($jour);
-
-            // Format de la période "Novembre 2025"
             $periode = $current->isoFormat('MMMM YYYY');
 
             Paiement::create([
@@ -73,7 +80,7 @@ class BailController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Bail créé avec succès et paiements générés !',
+            'message' => 'Bail créé avec succès, statut logement mis à jour, paiements générés !',
             'bail' => $bail
         ], 201);
     }
@@ -120,11 +127,12 @@ class BailController extends Controller
     // Voir le détail d’un bail
     public function show($id)
     {
-        $bail = Bail::with(['logement', 'locataire'])->findOrFail($id);
-
-        return response()->json($bail);
+        $logement = $this->bailService->show($id);
+        if (!$logement) {
+            return response()->json(['message' => 'Logement non trouvé'], 404);
+        }
+        return new  BailLocataireResource($logement );
     }
-
     public function destroy($id)
     {
         $bail = Bail::findOrFail($id);
@@ -173,6 +181,11 @@ class BailController extends Controller
         $bail = Bail::findOrFail($bailId); // récupère le bail
         $pdf = PDF::loadView('bail_pdf', compact('bail'));
         return $pdf->download('bail-'.$bail->id.'.pdf');
+    }
+
+    public function ResilierBail($bailId)
+    {
+
     }
 
 
