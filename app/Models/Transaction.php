@@ -15,6 +15,7 @@ class Transaction extends Model
         'frais',
         'raw_response',
         'date_transaction',
+        'mode_paiement'
     ];
 
     protected $casts = [

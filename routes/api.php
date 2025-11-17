@@ -7,6 +7,7 @@ use App\Http\Controllers\API\GeoController;
 use App\Http\Controllers\API\LogementController;
 use App\Http\Controllers\API\PaiementController;
 use App\Http\Controllers\API\PropertyController;
+use App\Http\Controllers\API\TransactionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -118,6 +119,11 @@ Route::middleware(['auth:sanctum','proprietaire'])->prefix('proprietaire')->grou
 
     Route::get('paiements',[PaiementController::class, 'paiementsForBailleur']);
 
+    Route::get('/baux/{bailId}/paiements/id ',[PaiementController::class, 'recuLoyer ']);
+
+    Route::post('/transactions/{transaction}/valider-especes', [PaiementController::class, 'validerEspeces']);
+
+
 
 
 
@@ -143,20 +149,27 @@ Route::middleware('auth:sanctum')->prefix('locataire')->group(function () {
 
     // Liste tous les Bails qui te concerne
     Route::get('/baux', [BailController::class, 'bauxLocataire']);
+
     // details du bails
      Route::get('/baux/{id}', [BailController::class, 'show']);
+
     // Route qui te permet de lister tous les bail pour ensuite selectionner l'un des bail et payer
     Route::get('/bauxpaie',[BailController::class, 'bauxForLocataire']);
 
-
-
     // Route qui te redrige de payer ton location
-    Route::get('/baux/{bailId}/paiements',[PaiementController::class, 'indexByBail']);
+    Route::get('/bail/{bailId}/paiements',[PaiementController::class, 'indexByPaiement']);
+
+    Route::get('/bail/{bailId}/paiements/{id}', [PaiementController::class, 'detailPaiement']);
+
+    Route::post('/paiements/{paiement}/', [PaiementController::class, 'payerEspeces']);
 
 
 
 
-   // Route::get('/baux/{id}/export-pdf', [BailController::class, 'exportPdf']);
+
+
+
+    // Route::get('/baux/{id}/export-pdf', [BailController::class, 'exportPdf']);
 
 });
 

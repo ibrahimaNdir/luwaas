@@ -35,6 +35,10 @@ return [
         'client_secret' => env('PAYPAL_SECRET'),
         'mode' => env('PAYPAL_MODE'), // default: 'sandbox'
     ],
+    'fcm' => [
+        'key' => env('FCM_SERVER_KEY'),
+    ],
+
 
 
 ];
