@@ -37,7 +37,7 @@ class BailProprietaireRessource extends JsonResource
             'jour_echeance'        => $this->jour_echeance,
             'renouvellement'       => $this->renouvellement_automatique,
             'statut'               => $this->statut_dynamique,  // <-- toujours à jour côté API !
-            'statut_db'            => $this->statut,            // optionnel : statut “brut” en DB
+            //'statut_db'            => $this->statut,            // optionnel : statut “brut” en DB
             //'created_at'           => $this->created_at,
             //'updated_at'           => $this->updated_at
         ];

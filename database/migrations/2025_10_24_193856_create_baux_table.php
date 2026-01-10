@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('baux', function (Blueprint $table) {
-            $table->id();
+            $table->id(); 
+            $table->foreignId('demande_id')->nullable()->constrained('demandes')->onDelete('set null');
 
             $table->foreignId('logement_id')
                 ->constrained('logements')

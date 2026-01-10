@@ -10,6 +10,7 @@ use App\Http\Resources\BauxLocataireRessource;
 use App\Models\Bail;
 use App\Models\Logement;
 use App\Models\Paiement;
+use App\Models\Demande;
 use App\Services\Proprietaire\BailService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -37,6 +38,8 @@ class BailController extends Controller
         $validated = $request->validate([
             'logement_id' => 'required|exists:logements,id',
             'locataire_id' => 'required|exists:locataires,id',
+            // Ajout ici : on accepte l'ID de la demande si fourni
+            'demande_id' => 'nullable|exists:demandes,id',
             'charges_mensuelles' => 'required|integer|min:0',
             'caution' => 'required|integer|min:0',
             'montant_loyer' => 'required|integer|min:0',
@@ -49,6 +52,12 @@ class BailController extends Controller
 
         // Création du bail
         $bail = Bail::create($validated);
+
+        if (!empty($validated['demande_id'])) {
+            $demande = Demande::find($validated['demande_id']);
+            // Optionnel : Tu pourrais avoir un statut 'finalisee' ou 'bail_signe'
+            $demande->update(['status' => 'bail_signe']);
+        }
 
         // MAJ du statut du logement en "occupé"
         $logement = Logement::find($validated['logement_id']);
@@ -97,7 +106,7 @@ class BailController extends Controller
 
         // Affiche tous les baux où le logement appartient au bailleur courant
         $baux = Bail::with(['locataire', 'logement'])
-            ->whereHas('logement.propriete', function($q) use ($proprietaire_id) {
+            ->whereHas('logement.propriete', function ($q) use ($proprietaire_id) {
                 $q->where('proprietaire_id', $proprietaire_id);
             })
             ->orderByDesc('date_debut')
@@ -131,7 +140,7 @@ class BailController extends Controller
         if (!$logement) {
             return response()->json(['message' => 'Logement non trouvé'], 404);
         }
-        return new  BailLocataireResource($logement );
+        return new  BailLocataireResource($logement);
     }
     public function destroy($id)
     {
@@ -175,23 +184,38 @@ class BailController extends Controller
 
         return response()->json($paiements);
     }
+   public function exportPdf($bailId)
+{ 
+    $user = auth()->user();
 
-    public function exportPdf($bailId)
-    {
-        $bail = Bail::findOrFail($bailId); // récupère le bail
-        $pdf = PDF::loadView('bail_pdf', compact('bail'));
-        return $pdf->download('bail-'.$bail->id.'.pdf');
+    // 1. On charge les relations
+    $bail = Bail::with([
+        'locataire.user',
+        'logement.propriete.proprietaire.user'
+    ])->findOrFail($bailId); 
+
+    // 2. VERIFICATION DOUBLE (Locataire OU Bailleur)
+    
+    // Est-ce le locataire ?
+    $isLocataire = $bail->locataire && $bail->locataire->user_id === $user->id;
+    
+    // Est-ce le propriétaire ? (On remonte la chaîne : Bail -> Logement -> Propriété -> Propriétaire)
+    $isBailleur = $bail->logement->propriete->proprietaire && $bail->logement->propriete->proprietaire->user_id === $user->id;
+
+    // Si ce n'est NI l'un NI l'autre => DEHORS !
+    if (!$isLocataire && !$isBailleur) {
+        return response()->json([
+            'message' => 'Action non autorisée. Vous n\'êtes pas partie prenante de ce contrat.'
+        ], 403); 
     }
 
-    public function ResilierBail($bailId)
-    {
+    // 3. Génération du PDF
+    $pdf = PDF::loadView('bail_pdf', compact('bail')); // ou 'bail_minimal_pdf' selon ton choix
 
-    }
-
-
-
+    return $pdf->download('Contrat_Location_' . $bail->id . '.pdf');
+}
 
 
 
-
+    public function ResilierBail($bailId) {}
 }

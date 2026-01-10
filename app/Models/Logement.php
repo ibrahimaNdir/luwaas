@@ -14,7 +14,7 @@ class Logement extends Model
         'nombre_pieces',
         'meuble',
         'etat',
-        'type',
+        'typelogement',
         'prix_loyer',
         'statut_occupe',
         'statut_publication',

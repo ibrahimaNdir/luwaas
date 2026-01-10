@@ -5,9 +5,11 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 
 use App\Http\Requests\LogementRequest;
-use App\Http\Resources\LogementProprietaireResource;
+use App\Http\Resources\LogementProprietaireRessource;
+use App\Http\Resources\LogementLocataireResource;
 use App\Models\Logement;
 use App\Models\Propriete;
+use App\Models\Bail;
 use App\Services\Proprietaire\LogementService;
 use Illuminate\Http\Request;
 
@@ -26,6 +28,9 @@ class LogementController extends Controller
         $logements = $this->logementService->index();
         return response()->json($logements, 200);
     }
+
+
+    // Création d'un logement lié à une propriété spécifique
 
     public function store(LogementRequest $request, $proprieteId)
     {
@@ -47,7 +52,7 @@ class LogementController extends Controller
 
 
 
-
+    // Affichage d'un logement par son ID
     public function show($id)
     {
         $logement = $this->logementService->show($id);
@@ -56,6 +61,10 @@ class LogementController extends Controller
         }
         return response()->json($logement, 200);
     }
+
+
+
+    // Mise à jour d'un logement par son ID
 
     public function update(LogementRequest $request, $proprieteId, $id)
     {
@@ -67,6 +76,11 @@ class LogementController extends Controller
         return response()->json($logement, 200);
     }
 
+
+
+
+
+    // Suppression d'un logement par son ID
     public function destroy($proprieteId, $id)
     {
         $deleted = $this->logementService->destroy($proprieteId, $id);
@@ -77,6 +91,8 @@ class LogementController extends Controller
     }
 
 
+
+    // Recherche de logements avec filtres
     public function search(Request $request)
     {
         $filters = $request->only(['propriete_id', 'statut_occupe', 'typelogement']);
@@ -84,21 +100,31 @@ class LogementController extends Controller
         return response()->json($results, 200);
     }
 
+
+
+    // Liste des logements d'une propriété spécifique
     public function indexByPropriete($proprieteId)
     {
         $logements = $this->logementService->indexByPropriete($proprieteId);
 
         // ✅ Retourne une collection de Resources
-        return LogementProprietaireResource::collection($logements);
+        return LogementProprietaireRessource::collection($logements);
     }
 
 
+
+
+
+    // Compte des logements d'une propriété spécifique
     public function countByPropriete($proprieteId)
     {
         $count = $this->logementService->countByPropriete($proprieteId);
         return response()->json(['total' => $count], 200);
     }
 
+
+
+    // Mise à jour du statut de publication d'un logement
     public function updateStatusPublication(Request $request, $proprieteId, $id)
     {
         $request->validate([
@@ -116,11 +142,14 @@ class LogementController extends Controller
     }
 
 
+
+    // Ajout de photos à un logement
+
     public function addPhotos(Request $request, $proprieteId, $logementId)
     {
         $request->validate([
             'photos' => 'required',
-            'photos.*' => 'image|max:2048'
+             'photos.*' => 'image|max:5120'
         ]);
 
         $proprietaire = auth()->user()->proprietaire;
@@ -156,6 +185,8 @@ class LogementController extends Controller
     }
 
 
+    // Récupère les logements publiés d'un propriétaire spécifique
+
     public function getPublishedLogementsByProprietaire(Request $request)
     {
         $proprietaireId = $request->user()->proprietaire->id;
@@ -165,7 +196,11 @@ class LogementController extends Controller
         return response()->json($logements, 200);
     }
 
-    public function nearby(Request $request) {
+
+    // Recherche de logements à proximité d'une position géographique
+
+    public function nearby(Request $request)
+    {
         $request->validate([
             'lat' => 'required|numeric',
             'lng' => 'required|numeric',
@@ -202,6 +237,9 @@ class LogementController extends Controller
     }
 
 
+
+
+    //
 
     /**
      * Recherche par zone administrative (région, département, commune)
@@ -253,4 +291,28 @@ class LogementController extends Controller
 
 
 
+    // Récupère les logements liés au locataire connecté
+
+    public function logementsLocataire(Request $request)
+    {
+        $user = $request->user();
+        $locataire = $user->locataire ?? null;
+
+        if (!$locataire) {
+            return response()->json([
+                'message' => 'Non autorisé ou pas de profil locataire.'
+            ], 403);
+        }
+
+        // Récupère tous les logements à partir des baux du locataire
+        $logements = Bail::with('logement.propriete')
+            ->where('locataire_id', $locataire->id)
+            ->orderByDesc('date_debut')
+            ->get()
+            ->pluck('logement')        // On récupère seulement les logements
+            ->unique('id')             // On enlève les doublons si plusieurs baux sur même logement
+            ->values();                // On réindexe proprement
+
+        return LogementLocataireResource::collection($logements);
+    }
 }

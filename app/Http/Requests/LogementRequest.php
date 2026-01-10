@@ -3,39 +3,68 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use App\Models\Propriete;
 
 class LogementRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return auth()->check(); // Autorise uniquement les utilisateurs authentifiés
+        return auth()->check();
     }
 
     public function rules(): array
     {
-        return [
+        // Récupère le proprieteId depuis la route
+        $proprieteId = $this->route('proprieteId');
+        
+        // Charge la propriété pour connaître son type
+        $propriete = Propriete::find($proprieteId);
+        
+        // Détermine les types de logement autorisés
+        $typesAutorises = $this->getTypesLogementAutorises($propriete);
 
+        return [
             'numero'         => 'required|string|max:50',
             'superficie'     => 'nullable|numeric|min:0',
             'nombre_pieces'  => 'nullable|integer|min:0',
             'meuble'         => 'required|boolean',
-            'etat'           => 'required|in:excellent,bon,moyen,renovation_requise',
-            'type'           => 'required|in:studio,appartement,maison,villa',
+            'etat'           => 'required|string',
+            'typelogement'   => [
+                'required',
+                'string',
+                Rule::in($typesAutorises)
+            ],
             'description'    => 'nullable|string',
             'prix_loyer'     => 'required|numeric|min:0'
         ];
     }
 
+    /**
+     * Retourne les types de logement autorisés selon le type de propriété
+     */
+    private function getTypesLogementAutorises(?Propriete $propriete): array
+    {
+        if (!$propriete) {
+            return []; // Aucun type autorisé si propriété introuvable
+        }
+
+        return match(strtolower($propriete->type)) {
+            'villa' => ['villa'],
+            'maison' => ['maison'],
+            'immeuble' => ['studio', 'appartement'],
+            default => [] // Type de propriété inconnu
+        };
+    }
+
+    /**
+     * Messages d'erreur personnalisés
+     */
     public function messages(): array
     {
         return [
-            'propriete_id.required'  => 'La propriété est obligatoire.',
-            'propriete_id.exists'    => 'La propriété sélectionnée est invalide.',
-            'numero.required'        => 'Le numéro du logement est obligatoire.',
-            'etat.in'                => 'L\'état doit être l\'un des suivants : excellent, bon, moyen ou renovation_requise.',
-            'typelogement.in'        => 'Le type de logement doit être studio, appartement, maison ou villa.',
-            'meuble.required'        => 'Le champ meuble est obligatoire (true ou false).'
-
+            'typelogement.in' => 'Le type de logement sélectionné n\'est pas compatible avec le type de propriété.',
+            'typelogement.required' => 'Le type de logement est obligatoire.'
         ];
     }
 }

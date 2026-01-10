@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PaiementAdminRessource;
 use App\Http\Resources\PaiementDetailsRessources;
 use App\Http\Resources\PaiementLocataireRessource;
-use App\Http\Resources\PaiementProprietaireRessource;
+use App\Http\Resources\ProprieteResource;
 use App\Models\Bail;
 use App\Models\Paiement;
 use App\Models\Transaction;
 use App\Notifications\PaiementEspecesDemande;
 use App\Services\FirebaseNotificationService;
 use App\Services\Proprietaire\PaiementService;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class PaiementController extends Controller
@@ -21,7 +22,7 @@ class PaiementController extends Controller
 
     public function __construct(PaiementService $paiementService)
     {
-        $this->paiementService= $paiementService;
+        $this->paiementService = $paiementService;
     }
 
     /**
@@ -96,7 +97,7 @@ class PaiementController extends Controller
     }
 
 
-/*
+    /*
     public function bauxAvecStatutPaiement(Request $request)
     {
         $user = $request->user(); // locataire connecté
@@ -128,20 +129,24 @@ class PaiementController extends Controller
 
 
 
-  //
-    public function paiementsForBailleur(Request $request)
-    {
-        $proprioId = $request->user()->id;
+    //
+   public function paiementsForBailleur(Request $request)
+{
+    $proprioId = $request->user()->id;
 
-        $paiements = Paiement::whereHas('bail.logement.propriete', function ($query) use ($proprioId) {
-            $query->where('proprietaire_id', $proprioId); // champ de la table propriétés
-        })->with('bail', 'bail.logement', 'bail.logement.propriete', 'locataire')->get();
+    $paiements = Paiement::whereHas('bail.logement.propriete', function ($query) use ($proprioId) {
+            $query->where('proprietaire_id', $proprioId);
+        })
+        ->with('bail', 'bail.logement.propriete', 'locataire.user')
+        ->orderByDesc('date_paiement')
+        ->get();
 
-        return response()->json($paiements);
-    }
+    return ProprieteResource::collection($paiements);
+}
 
- // Methode qui liste tous les Paiements lier a un Bail ( cote Locataire)
-    public function indexByPaiement ($bailId)
+
+    // Methode qui liste tous les Paiements lier a un Bail ( cote Locataire)
+    public function indexByPaiement($bailId)
     {
         $user = auth()->user();
         $locataireId = $user->locataire->id;
@@ -162,7 +167,8 @@ class PaiementController extends Controller
         return PaiementLocataireRessource::collection($paiements);
     }
 
-    public function detailPaiement($bailId, $id) {
+    public function detailPaiement($bailId, $id)
+    {
         $paiement = Paiement::where('id', $id)
             ->where('bail_id', $bailId)
             ->first();
@@ -174,11 +180,19 @@ class PaiementController extends Controller
     }
 
 
-    public function payerEspeces(Request $request, $paiement_id)
-    {
-        $paiement = Paiement::findOrFail($paiement_id);
+    // Methode pour payer en espece un Paiement lier a un Bail ( cote Locataire)
 
-        if ($paiement->locataire_id !== auth()->id()) {
+    public function payerEspeces(Request $request, $bailId, $paiement_id, NotificationService $notifService)
+    {
+        $paiement = Paiement::where('id', $paiement_id)
+            ->where('bail_id', $bailId)
+            ->firstOrFail();
+
+        $user = auth()->user();
+        $locataireId = $user->locataire->id;
+
+        // 1. Vérification sécurité
+        if ($paiement->bail->locataire_id !== $locataireId) {
             return response()->json(['message' => 'Accès refusé'], 403);
         }
 
@@ -186,13 +200,15 @@ class PaiementController extends Controller
             return response()->json(['message' => 'Ce paiement est déjà réglé'], 400);
         }
 
-        if (\App\Models\Transaction::where('paiement_id', $paiement->id)
-            ->where('statut', 'en_attente')->exists()) {
+        // 2. Vérifier si une demande existe déjà
+        if (Transaction::where('paiement_id', $paiement->id)
+            ->where('statut', 'en_attente')->exists()
+        ) {
             return response()->json(['message' => 'Une demande de paiement espèces existe déjà pour ce mois.'], 400);
         }
 
-
-        $transaction = \App\Models\Transaction::create([
+        // 3. Créer la transaction "En attente"
+        $transaction = Transaction::create([
             'paiement_id'      => $paiement->id,
             'mode_paiement'    => 'especes',
             'montant'          => $paiement->montant_attendu,
@@ -200,40 +216,57 @@ class PaiementController extends Controller
             'date_transaction' => now(),
         ]);
 
-        // Notification push au bailleur (si dispo)
-        $bailleur = $paiement->bail->bailleur ?? null;
-        if ($bailleur && $bailleur->firebase_token) {
-            \App\Services\FirebaseNotificationService::send(
-                $bailleur->firebase_token,
-                'Paiement espèces à valider',
-                'Le locataire '.$paiement->locataire->user->prenom.' ' .$paiement->locataire->user->nom . ' souhaite payer en espèces.',
-                ['type' => 'paiement_especes', 'transaction_id' => $transaction->id]
+        // 🔥 4. Notification au BAILLEUR (Propriétaire)
+        // "Le locataire X veut payer en espèces, validez-le !"
+        $bailleur = $paiement->bail->proprietaire->user ?? null; // Récupère le modèle Bailleur
+
+        // On s'assure que le bailleur a un compte User associé pour la notif
+        if ($bailleur && $bailleur->user) {
+            $nomCompletLocataire = $user->prenom . ' ' . $user->nom;
+
+            $notifService->sendToUser(
+                $bailleur->user, // L'utilisateur cible (User du bailleur)
+                "Paiement Espèces 💵",
+                "{$nomCompletLocataire} souhaite payer son loyer en espèces. Validez la réception.",
+                "validation_especes" // Type pour redirection éventuelle vers écran de validation
             );
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Demande de paiement en espèces enregistrée.',
+            'message' => 'Demande de paiement en espèces enregistrée et notifiée au bailleur.',
             'transaction' => $transaction
         ]);
     }
-    public function validerEspeces(Request $request, $transaction_id)
-    {
-        $transaction = \App\Models\Transaction::findOrFail($transaction_id);
 
-        // Vérifie que l'utilisateur actuel est bien le bailleur du logement
+
+
+    // Methode pour que le Bailleur valide le paiement en espece d'une Transaction lier a un Paiement
+    public function validerEspeces(Request $request, $transaction_id, NotificationService $notifService)
+    {
+        $transaction = Transaction::findOrFail($transaction_id);
+
+        // 1. Vérifie que l'utilisateur actuel est bien le bailleur
         $user = auth()->user();
         $paiement = $transaction->paiement;
 
-        if (!$paiement || !$paiement->bail || $paiement->bail->logement->propriete->proprietaire_id !== $user->id) {
+        if (
+            !$paiement ||
+            !$paiement->bail ||
+            !$paiement->bail->logement ||
+            !$paiement->bail->logement->propriete ||
+            !$paiement->bail->logement->propriete->proprietaire
+        ) {
+            return response()->json(['message' => 'Données de paiement invalides.'], 400);
+        }
+
+        $proprietaire = $paiement->bail->logement->propriete->proprietaire;
+
+        if ($proprietaire->user_id !== $user->id) {
             return response()->json(['message' => 'Seul le bailleur associé peut valider ce paiement.'], 403);
         }
 
-        if ($transaction->statut !== 'en_attente') {
-            return response()->json(['message' => 'Transaction déjà validée ou refusée.'], 400);
-        }
-
-        // Validation : on passe la transaction à "valide", on marque le paiement comme "payé"
+        // 2. Validation : update transaction et paiement
         $transaction->update([
             'statut' => 'valide',
             'date_validation' => now(),
@@ -244,29 +277,26 @@ class PaiementController extends Controller
             'statut' => 'payé',
             'date_paiement' => now(),
         ]);
+
+        // 🔥 3. Notification au LOCATAIRE (celui qui a payé)
         $locataire = $paiement->locataire;
-        if ($locataire && $locataire->firebase_token) {
-            \App\Services\FirebaseNotificationService::send(
-                $locataire->firebase_token,
-                'Paiement espèces validé',
-                'Votre paiement pour le logement ' . ($paiement->bail->logement->numero ?? '') .
-                ' - Periode  ' . $paiement->periode . ' '. ' a été validé par le bailleur.',
-                [
-                    'type' => 'paiement_especes_valide',
-                    'transaction_id' => $transaction->id,
-                    'paiement_id' => $paiement->id
-                ]
+
+        // On vérifie que le locataire a un User associé pour la notif
+        if ($locataire && $locataire->user) {
+            $logementInfo = $paiement->bail->logement->numero ?? 'Inconnu';
+            $periodeInfo = $paiement->periode ?? '';
+
+            $notifService->sendToUser(
+                $locataire->user,
+                "Paiement Validé ✅",
+                "Votre paiement espèces pour {$logementInfo} ($periodeInfo) a été validé par le bailleur.",
+                "paiement_valide" // Type pour rediriger vers l'écran d'historique
             );
         }
 
-        // Optionnel : notification au locataire (push, email...)
-
         return response()->json([
             'success' => true,
-            'message' => 'Le paiement en espèces a été validé.',
+            'message' => 'Le paiement en espèces a été validé et le locataire notifié.',
         ]);
     }
-
-
-
 }

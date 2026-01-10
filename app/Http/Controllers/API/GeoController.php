@@ -15,7 +15,9 @@ class GeoController extends Controller
      */
     public function regions()
     {
-        return response()->json(Region::all());
+        return response()->json(
+            Region::select('id', 'nom')->orderBy('nom')->get()
+        );
     }
 
     /**
@@ -23,8 +25,18 @@ class GeoController extends Controller
      */
     public function departements($regionId)
     {
-        $departements = Departement::where('region_id', $regionId)->get();
-        return response()->json($departements);
+        $region = Region::find($regionId);
+
+        if (!$region) {
+            return response()->json(['error' => 'Région introuvable'], 404);
+        }
+
+        return response()->json(
+            Departement::select('id', 'nom')
+                ->where('region_id', $regionId)
+                ->orderBy('nom')
+                ->get()
+        );
     }
 
     /**
@@ -32,7 +44,18 @@ class GeoController extends Controller
      */
     public function communes($departementId)
     {
-        $communes = Commune::where('departement_id', $departementId)->get();
-        return response()->json($communes);
+        $dep = Departement::find($departementId);
+
+        if (!$dep) {
+            return response()->json(['error' => 'Département introuvable'], 404);
+        }
+
+        return response()->json(
+            Commune::select('id', 'nom')
+                ->where('departement_id', $departementId)
+                ->orderBy('nom')
+                ->get()
+        );
     }
 }
+

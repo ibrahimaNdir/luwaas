@@ -25,7 +25,7 @@ class BauxLocataireRessource extends JsonResource
             ],
 
             'statut'               => $this->statut_dynamique,  // <-- toujours à jour côté API !
-            'statut_db'            => $this->statut,            // optionnel : statut “brut” en DB
+           
 
         ];
     }

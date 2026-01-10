@@ -27,6 +27,10 @@ return new class extends Migration
 
             $table->timestamp('date_demande')->useCurrent();
 
+             // LE CHAMP MAGIQUE 👇
+        $table->string('status')->default('en_attente'); 
+       
+
 
             $table->timestamps();
         });

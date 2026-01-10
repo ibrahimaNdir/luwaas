@@ -7,6 +7,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class BailAdminRessource extends JsonResource
 {
+    private $logement;
+
     public function toArray($request){
         return [
            // 'id' => $this->id,

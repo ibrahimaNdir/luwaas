@@ -11,6 +11,7 @@ class Bail extends Model
     protected $fillable = [
         'montant_loyer',
         'date_debut',
+        'demande_id',
         'date_fin',
         'garantie',
         'statut',

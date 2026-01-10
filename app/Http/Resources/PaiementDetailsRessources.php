@@ -11,15 +11,11 @@ class PaiementDetailsRessources extends JsonResource
             'logement' => [
                 //  'id'         => $this->id,
                 'periode'      => $this->periode,
-                'adresse'    => $this->statut,
                 'date echeance '      =>$this->date_echeance ,
                 'montant'   =>$this->montant_attendu,
                 'Logement'=> $this->bail->logement->numero ,
                 'type'=> $this->bail->logement->type,
-                 'nom'        => $this->bail->logement->propriete->proprietaire->user->nom,
-                          'telephone'  => $this->bail->logement->propriete->proprietaire->user->prenom,
-
-            ],
+                             ],
 
 
         ];

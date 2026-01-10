@@ -13,13 +13,14 @@ return new class extends Migration
     {
         Schema::create('logements', function (Blueprint $table) {
             $table->id();
+            
             // Informations liées au logement
             $table->string('numero');
             $table->float('superficie')->nullable();
             $table->integer('nombre_pieces')->nullable();
             $table->boolean('meuble')->default(false);
             $table->enum('etat', ['excellent', 'bon', 'moyen', 'renovation_requise'])->default('bon');
-            $table->enum('type', ['studio', 'appartement', 'maison', 'villa'])->default('maison');
+            $table->enum('typelogement', ['studio', 'appartement', 'maison', 'villa']); // ← CHANGÉ
             $table->text('description')->nullable();
             $table->integer('prix_loyer');
 
@@ -35,8 +36,8 @@ return new class extends Migration
 
             $table->timestamps();
         });
-
     }
+
     /**
      * Reverse the migrations.
      */
