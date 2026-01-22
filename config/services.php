@@ -38,6 +38,11 @@ return [
     'fcm' => [
         'key' => env('FCM_SERVER_KEY'),
     ],
+    // ✅ AJOUTE CETTE SECTION FIREBASE
+    'firebase' => [
+    'credentials' => storage_path('app/firebase/ma-cle.json'),
+],
+
 
 
 

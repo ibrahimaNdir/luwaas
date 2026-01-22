@@ -95,14 +95,40 @@ class PropertyController extends Controller
 
 
 
-    // ✅ Dashboard du propriétaire connecté
-    public function dashboard(Request $request)
+       public function dashboard(Request $request)
     {
-        $ownerId = $request->user()->proprietaire->id;
-        $stats = $this->propertyService->dashboard($ownerId);
+        $proprietaire = $request->user()->proprietaire;
 
-        return response()->json($stats, 200);
+        if (!$proprietaire) {
+            return response()->json(['message' => 'Bailleur non trouvé'], 404);
+        }
 
+        // ✅ Stats principales (temps réel + mois en cours)
+        $dashboard = $this->propertyService->dashboard($proprietaire->id);
+
+        // ✅ Historique 6 mois
+        $historique = $this->propertyService->historique6Mois($proprietaire->id);
+
+        return response()->json([
+            'dashboard' => $dashboard,
+            'historique_6_mois' => $historique,
+        ], 200);
+    }
+
+    /**
+     * Stats détaillées par propriété (optionnel)
+     */
+    public function statsProprietes(Request $request)
+    {
+        $proprietaire = $request->user()->proprietaire;
+
+        if (!$proprietaire) {
+            return response()->json(['message' => 'Bailleur non trouvé'], 404);
+        }
+
+        $stats = $this->propertyService->statsParPropriete($proprietaire->id);
+
+        return response()->json(['proprietes' => $stats], 200);
     }
 
 

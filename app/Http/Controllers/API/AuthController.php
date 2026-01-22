@@ -11,7 +11,6 @@ use App\Services\Auth\AuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-
 class AuthController extends Controller
 {
     protected $authService;
@@ -40,22 +39,20 @@ class AuthController extends Controller
             'message'  => 'Connexion réussie',
             'user'     => new UserResource($data['user']),
             'token'    => $data['token'],
+            'firebase_token' => $data['firebase_token'],  // ✅ AJOUTÉ
             'redirect' => $data['redirect'],
         ]);
     }
 
-
-
     public function register(Request $request)
     {
-
         // 1. Validation des champs communs
         $request->validate([
             'prenom'     => 'required|string|max:255',
             'nom'        => 'required|string|max:255',
             'email'      => 'required|email|unique:users,email',
             'telephone'  => 'required|string|unique:users,telephone',
-            'password'   => 'required|string|min:6|',
+            'password'   => 'required|string|min:6',
             'user_type'  => 'required|in:proprietaire,locataire',
         ]);
 
@@ -69,15 +66,17 @@ class AuthController extends Controller
         try {
             DB::beginTransaction();
 
-            // 3. Création de l'utilisateur
-            $user = User::create([
+            // 3. Utilise le service pour créer l'utilisateur et générer le firebase token
+            $data = $this->authService->register([
                 'prenom'    => $request->prenom,
                 'nom'       => $request->nom,
                 'email'     => $request->email,
                 'telephone' => $request->telephone,
-                'password'  => bcrypt($request->password),
+                'password'  => $request->password,
                 'user_type' => $request->user_type,
             ]);
+
+            $user = $data['user'];
 
             // 4. Création du profil spécifique
             if ($request->user_type === 'proprietaire') {
@@ -89,9 +88,8 @@ class AuthController extends Controller
             } else {
                 $profil = Locataire::create([
                     'user_id'      => $user->id,
-                    'cni'             => $request->cni,
+                    'cni'          => $request->cni,
                     'locataire_id' => 'LOC-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
-
                 ]);
             }
 
@@ -104,31 +102,23 @@ class AuthController extends Controller
 
             DB::commit();
 
-            // 5. Génération du token
-            $token = $user->createToken('auth_token')->plainTextToken;
-
-            // 6. Réponse JSON réussie
+            // 5. Réponse JSON réussie
             return response()->json([
                 'message'  => 'Inscription réussie',
-                'user'     => new \App\Http\Resources\UserResource($user),
-                'token'    => $token,
-                'redirect' => $user->user_type === 'proprietaire'
-                    ? '/dashboard-proprietaire'
-                    : '/dashboard-locataire',
+                'user'     => new UserResource($user),
+                'token'    => $data['token'],
+                'firebase_token' => $data['firebase_token'],  // ✅ AJOUTÉ
+                'redirect' => $data['redirect'],
             ], 201);
 
-
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Erreur lors de l\'inscription : ' . $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ], 500);
         }
-        catch (\Exception $e) {
-                return response()->json([
-                    'message' => 'Erreur lors de l\'inscription : ' . $e->getMessage(),
-                    'trace' => $e->getTraceAsString(),
-                ], 500);
-            }
-
-
     }
-
 
     public function logout(Request $request)
     {
@@ -136,10 +126,10 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Déconnexion réussie']);
     }
+
     public function index()
     {
-        $offres =  $this->authService->index();
-        return response()->json($offres,200);
-        //
+        $offres = $this->authService->index();
+        return response()->json($offres, 200);
     }
 }

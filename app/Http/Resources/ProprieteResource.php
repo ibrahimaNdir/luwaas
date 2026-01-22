@@ -18,7 +18,7 @@ class ProprieteResource extends JsonResource
             'id'          => $this->id,
             'titre'       => ucfirst($this->titre),
             'type'        => $this->type,
-            'adresse'     => $this->adresse, // orthographe corrigée
+            'adresse'     => $this->adresse, 
             'description' => $this->description,
 
             /*  'geo' => [

@@ -112,20 +112,25 @@ class LogementService
         }
 
         $photos = collect();
+        $isFirstPhoto = $logement->photos()->count() === 0;
 
-        foreach ($files as $file) {
+        foreach ($files as $index => $file) {
             if (!$file instanceof UploadedFile) {
                 continue;
             }
 
-            // Stockage du fichier dans le disque "public/photos_logements"
-            $path = $file->store('photos_logements', 'public');
+            $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
 
-            // Création de l’enregistrement en base de données
+            // ✅ CHANGEMENT : Stocke directement dans public/photos_logements
+            $file->move(public_path('photos_logements'), $filename);
+
+            // Le chemin à sauvegarder en base
+            $path = 'photos_logements/' . $filename;
+
             $photo = $logement->photos()->create([
-                'url' => $path,
-                'principale' => false,
-                'ordre' => 1,
+                'url' => $path, // Ex: "photos_logements/abc_123.jpg"
+                'principale' => $isFirstPhoto && $index === 0,
+                'ordre' => $index + 1,
             ]);
 
             $photos->push($photo);
@@ -134,13 +139,15 @@ class LogementService
         return $photos;
     }
 
+
+
     public function getPublishedLogementsByProprietaire($proprietaireId)
     {
         return Logement::where('statut_publication', 'publie')
             ->whereHas('propriete', function ($query) use ($proprietaireId) {
                 $query->where('proprietaire_id', $proprietaireId);
-            })->get();
+            })
+            ->with(['photos', 'propriete'])  // ✅ AJOUTE CETTE LIGNE
+            ->get();
     }
-
-
 }

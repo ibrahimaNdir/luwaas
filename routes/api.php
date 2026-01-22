@@ -70,7 +70,9 @@ Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->gro
     Route::get('/departements/{id}/communes', [GeoController::class, 'communes']);
 
     // Dashboard
+    
     Route::get('/dashboard', [PropertyController::class, 'dashboard']);
+    Route::get('/stats-proprietes', [PropertyController::class, 'statsProprietes']);
 
     // Propriétés (routes spécifiques AVANT les génériques)
     Route::get('/proprietes/count', [PropertyController::class, 'countProperty']);
@@ -107,6 +109,7 @@ Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->gro
     // Paiements
     Route::get('/paiements', [PaiementController::class, 'paiementsForBailleur']);
     Route::post('/transactions/{transaction}/valider-especes', [PaiementController::class, 'validerEspeces']);
+    
 });
 
 // ============================================

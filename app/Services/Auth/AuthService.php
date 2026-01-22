@@ -3,11 +3,20 @@
 namespace App\Services\Auth;
 
 use App\Models\User;
+use App\Services\FirebaseAuthService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthService
 {
+    protected $firebaseAuth;
+
+    // ✅ Ajoute le constructeur
+    public function __construct(FirebaseAuthService $firebaseAuth)
+    {
+        $this->firebaseAuth = $firebaseAuth;
+    }
+
     public function index()
     {
         return User::all();
@@ -36,9 +45,20 @@ class AuthService
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // ✅ AJOUT: Créer le Custom Token Firebase
+        $firebaseToken = $this->firebaseAuth->createCustomToken(
+            $user->id,
+            [
+                'email' => $user->email,
+                'user_type' => $user->user_type,
+                'telephone' => $user->telephone,
+            ]
+        );
+
         return [
             'user' => $user,
             'token' => $token,
+            'firebase_token' => $firebaseToken,  // ✅ AJOUT
             'redirect' => $this->getRedirectPath($user),
         ];
     }
@@ -58,9 +78,20 @@ class AuthService
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        // ✅ AJOUT: Créer le Custom Token Firebase aussi pour l'inscription
+        $firebaseToken = $this->firebaseAuth->createCustomToken(
+            $user->id,
+            [
+                'email' => $user->email,
+                'user_type' => $user->user_type,
+                'telephone' => $user->telephone,
+            ]
+        );
+
         return [
             'user' => $user,
             'token' => $token,
+            'firebase_token' => $firebaseToken,  // ✅ AJOUT
             'redirect' => $this->getRedirectPath($user),
         ];
     }

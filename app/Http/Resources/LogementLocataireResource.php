@@ -38,15 +38,18 @@ class LogementLocataireResource extends JsonResource
             ],
 
             // Photos du logement - formatées proprement
-            'photos' => $this->photos->map(function($photo) {
+            'photo_principale' => $this->photos->where('principale', true)->first()
+                ? $this->photos->where('principale', true)->first()->url_complete
+                : ($this->photos->first() ? $this->photos->first()->url_complete : null),
+            
+            // ✅ CORRECTION : URLs complètes de toutes les photos
+            'photos' => $this->photos->map(function ($photo) {
                 return [
                     'id' => $photo->id,
-                    'url' => url($photo->chemin),  // URL complète
-                    'legende' => $photo->legende ?? null,
-                    'est_principale' => (bool) $photo->est_principale,
+                    'url' => $photo->url_complete, // ✅ URL complète grâce à l'accessor
+                    'est_principale' => (bool) $photo->principale,
                 ];
             }),
-
         ];
 
     }

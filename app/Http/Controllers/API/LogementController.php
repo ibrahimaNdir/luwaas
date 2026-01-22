@@ -149,7 +149,7 @@ class LogementController extends Controller
     {
         $request->validate([
             'photos' => 'required',
-             'photos.*' => 'image|max:5120'
+            'photos.*' => 'image|max:5120'
         ]);
 
         $proprietaire = auth()->user()->proprietaire;
@@ -193,8 +193,10 @@ class LogementController extends Controller
 
         $logements = $this->logementService->getPublishedLogementsByProprietaire($proprietaireId);
 
-        return response()->json($logements, 200);
+        // ✅ Retourne avec la Resource (comme indexByPropriete)
+        return LogementProprietaireRessource::collection($logements);
     }
+
 
 
     // Recherche de logements à proximité d'une position géographique
