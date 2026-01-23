@@ -97,7 +97,7 @@ Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->gro
     // Gestion des demandes
     Route::get('/demandes', [DemandeController::class, 'demandesProprietaire']);
     Route::patch('/demandes/{id}/accepter', [DemandeController::class, 'accepter']);
-    Route::patch('/demandes/{id}/refuser', [DemandeController::class, 'refuser']);
+    Route::patch('/demandes/{id}/refuserssss', [DemandeController::class, 'refuser']);
 
     // Baux
     Route::post('/bails', [BailController::class, 'store']);
