@@ -12,7 +12,19 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+         $schedule->command('luwaas:rappel-loyers')
+                 ->dailyAt('06:00')
+                 ->timezone('Africa/Dakar');
+                 
+
+        $schedule->command('luwaas:rappel-fin-bail')
+             ->dailyAt('08:00')
+             ->timezone('Africa/Dakar');  
+
+        // ✅ NOUVELLE LIGNE : Rappel retards (10h)
+    $schedule->command('luwaas:rappel-retards')
+             ->dailyAt('10:00')
+             ->timezone('Africa/Dakar');
     }
 
     /**
