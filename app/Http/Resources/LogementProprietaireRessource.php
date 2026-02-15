@@ -9,44 +9,64 @@ class LogementProprietaireRessource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        // 1. CALCULS PRÉALABLES
+        // ---------------------
+        
+        // Titre (F3, F4...)
+        $titre_affiche = '';
+        if (strtolower($this->typelogement) === 'studio') {
+            $titre_affiche = 'Studio';
+        } else {
+            $titre_affiche = ucfirst($this->typelogement) . ' F' . ($this->nombre_chambres + 1);
+        }
+
+        
+
+        
+
+
+        // 2. RETOUR DU JSON
+        // -----------------
         return [
             'id' => $this->id,
-            'numero' => $this->numero,
-            
-            'type' => strtolower($this->typelogement), // ✅ Renvoie en minuscule (ex: "appartement")
-            
-            'nombre_pieces' => $this->nombre_pieces,
-            'superficie' => $this->superficie,
+            'identifiant' => $this->numero,
+            'titre_affiche' => $titre_affiche, // Ex: "Appartement F3"
+
+            'type' => strtolower($this->typelogement),
+            'superficie' => (float) $this->superficie,
             'meuble' => (bool) $this->meuble,
-            'etat' => strtolower($this->etat), // ✅ Renvoie en minuscule (ex: "bon")
-            'description' => $this->description,
+            'etat' => strtolower($this->etat),
+            'description' => $this->description .' '. $this->propriete->description,
+            'nombre_pieces' => "F". ($this->nombre_chambres + 1),
+
+            // --- SECTION FINANCIÈRE CALCULÉE (AUTOMATIQUE) ---
+           
+                'loyer_mensuel' => $this->prix_loyer,
             
-            'loyer_mensuel' => $this->prix_loyer,
-            'prix_loyer' => $this->prix_loyer, // Alias au cas où
-            
-            'statut_occupe' => $this->statut_occupe, // "disponible" ou "occupe"
-            'disponible' => $this->statut_occupe === 'disponible', // ✅ Boolean pour Flutter
-            
+            // ------------------------------------------------
+
+            'statut_occupe' => $this->statut_occupe,
             'statut_publication' => $this->statut_publication,
-            'propriete_id' => $this->propriete_id,
             
-            'propriete' => [
+            
+                'id_propriete' => $this->propriete_id,
                 'adresse' => $this->propriete->adresse ?? '',
                 'commune' => $this->propriete->commune->nom ?? '',
-               // 'ville' => $this->propriete->commune->nom ?? '',
-               // 'region' => $this->propriete->region->nom ?? '',
-            ],
             
-            // ✅ CORRECTION : URL complète de la photo principale
+
+            
+                'chambres' => $this->nombre_chambres,
+                'sdb' => $this->nombre_salles_de_bain,
+            
+
             'photo_principale' => $this->photos->where('principale', true)->first()
                 ? $this->photos->where('principale', true)->first()->url_complete
                 : ($this->photos->first() ? $this->photos->first()->url_complete : null),
-            
-            // ✅ CORRECTION : URLs complètes de toutes les photos
-            'photos' => $this->photos->map(function ($photo) {
+
+            'photos' => $this->photos->map(function($photo) {
                 return [
                     'id' => $photo->id,
-                    'url' => $photo->url_complete, // ✅ URL complète grâce à l'accessor
+                    'url' => $photo->url_complete, // Assure-toi que cet accessor existe (voir message précédent)
                     'est_principale' => (bool) $photo->principale,
                 ];
             }),

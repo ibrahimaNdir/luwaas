@@ -34,9 +34,8 @@ class PropertyController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(ProprieteRequest $request)
+       public function store(ProprieteRequest $request)
     {
-
         $proprietaire = auth()->user()->proprietaire;
 
         if (!$proprietaire) {
@@ -49,16 +48,19 @@ class PropertyController extends Controller
 
             $propriete = Propriete::create($data);
 
+            // Modification ici : on utilise la Resource pour formater la réponse
             return response()->json([
                 'message' => 'Propriété ajoutée avec succès',
-                'propriete' => $propriete
+                'propriete' => new ProprieteResource($propriete)
             ], 201);
+
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Erreur lors de la création de la propriété : ' . $e->getMessage()
             ], 500);
         }
     }
+
 
 
     /**

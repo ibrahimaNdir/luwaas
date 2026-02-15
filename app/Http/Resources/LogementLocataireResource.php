@@ -16,6 +16,7 @@ class LogementLocataireResource extends JsonResource
     {
         return [
             'type' => ucfirst($this->type),
+            'numero' => $this->numero,  
             'superficie' => $this->superficie . ' m²',
 
             // Formatage avec F devant le nombre
@@ -26,17 +27,20 @@ class LogementLocataireResource extends JsonResource
             'nombre_pieces' => $this->nombre_pieces,
             'est_meuble' => (bool) $this->meuble,
             'etat' => ucfirst($this->etat),
-            'description' => $this->description,
+            'description ' => $this->description - $this->propriete->description,
 
             // Prix du loyer
             'loyer_mensuel' => number_format($this->prix_loyer) . ' FCFA',
+            'mois_caution' => $this->mois_caution,
+            'mois_avance' => $this->mois_avance,
+            'caution_etalee' =>$this->caution_etalee,
             
             // Informations de la propriété liées
             'propriete' => [
                 'adresse' => $this->propriete->adresse,
                 'commune' => $this->propriete->commune->nom,
-            ],
-
+            ], 
+            
             // Photos du logement - formatées proprement
             'photo_principale' => $this->photos->where('principale', true)->first()
                 ? $this->photos->where('principale', true)->first()->url_complete

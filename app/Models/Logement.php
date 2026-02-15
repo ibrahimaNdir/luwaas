@@ -18,6 +18,9 @@ class Logement extends Model
         'prix_loyer',
         'statut_occupe',
         'statut_publication',
+        'nombre_chambres',
+        'nombre_salles_de_bain',
+
     ];
 
     protected $casts = [
@@ -44,6 +47,17 @@ class Logement extends Model
         return $this->hasMany(PhotoLogement::class);
     }
 
+    // Dans le modèle Logement
+    public function getTitreAfficheAttribute(): string
+    {
+        if (strtolower($this->typelogement) === 'studio') {
+            return 'Studio';
+        }
+        return ucfirst($this->typelogement) . ' F' . ($this->nombre_chambres + 1);
+    }
 
-
+    public function getTotalEntreeAttribute(): float
+    {
+        return ($this->prix_loyer * $this->mois_caution) + ($this->prix_loyer * $this->mois_avance);
+    }
 }

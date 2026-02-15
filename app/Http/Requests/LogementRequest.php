@@ -36,9 +36,11 @@ class LogementRequest extends FormRequest
                 Rule::in($typesAutorises)
             ],
             'description'    => 'nullable|string',
-            'prix_loyer'     => 'required|numeric|min:0'
+            'prix_loyer'     => 'required|numeric|min:0',
+            'nombre_chambres' => 'required|integer|min:0',
+            'nombre_salles_de_bain' => 'required|integer|min:0',
         ];
-    }
+    }  
 
     /**
      * Retourne les types de logement autorisés selon le type de propriété

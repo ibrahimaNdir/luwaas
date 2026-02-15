@@ -184,36 +184,36 @@ class BailController extends Controller
 
         return response()->json($paiements);
     }
-   public function exportPdf($bailId)
-{ 
-    $user = auth()->user();
+    public function exportPdf($bailId)
+    {
+        $user = auth()->user();
 
-    // 1. On charge les relations
-    $bail = Bail::with([
-        'locataire.user',
-        'logement.propriete.proprietaire.user'
-    ])->findOrFail($bailId); 
+        // 1. On charge les relations
+        $bail = Bail::with([
+            'locataire.user',
+            'logement.propriete.proprietaire.user'
+        ])->findOrFail($bailId);
 
-    // 2. VERIFICATION DOUBLE (Locataire OU Bailleur)
-    
-    // Est-ce le locataire ?
-    $isLocataire = $bail->locataire && $bail->locataire->user_id === $user->id;
-    
-    // Est-ce le propriétaire ? (On remonte la chaîne : Bail -> Logement -> Propriété -> Propriétaire)
-    $isBailleur = $bail->logement->propriete->proprietaire && $bail->logement->propriete->proprietaire->user_id === $user->id;
+        // 2. VERIFICATION DOUBLE (Locataire OU Bailleur)
 
-    // Si ce n'est NI l'un NI l'autre => DEHORS !
-    if (!$isLocataire && !$isBailleur) {
-        return response()->json([
-            'message' => 'Action non autorisée. Vous n\'êtes pas partie prenante de ce contrat.'
-        ], 403); 
+        // Est-ce le locataire ?
+        $isLocataire = $bail->locataire && $bail->locataire->user_id === $user->id;
+
+        // Est-ce le propriétaire ? (On remonte la chaîne : Bail -> Logement -> Propriété -> Propriétaire)
+        $isBailleur = $bail->logement->propriete->proprietaire && $bail->logement->propriete->proprietaire->user_id === $user->id;
+
+        // Si ce n'est NI l'un NI l'autre => DEHORS !
+        if (!$isLocataire && !$isBailleur) {
+            return response()->json([
+                'message' => 'Action non autorisée. Vous n\'êtes pas partie prenante de ce contrat.'
+            ], 403);
+        }
+
+        // 3. Génération du PDF
+        $pdf = PDF::loadView('bail_pdf', compact('bail')); // ou 'bail_minimal_pdf' selon ton choix
+
+        return $pdf->download('Contrat_Location_' . $bail->id . '.pdf');
     }
-
-    // 3. Génération du PDF
-    $pdf = PDF::loadView('bail_pdf', compact('bail')); // ou 'bail_minimal_pdf' selon ton choix
-
-    return $pdf->download('Contrat_Location_' . $bail->id . '.pdf');
-}
 
 
 

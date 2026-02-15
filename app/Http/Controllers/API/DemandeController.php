@@ -7,8 +7,7 @@ use App\Http\Resources\DemandeLocataireResource;
 use App\Http\Resources\DemandeProprietaireResource;
 use App\Models\Demande;
 use Illuminate\Http\Request;
-use App\Services\NotificationService; // <--- AJOUTER
-use App\Models\Proprietaire;          // <--- AJOUTER
+
 
 
 class DemandeController extends Controller
@@ -43,7 +42,7 @@ class DemandeController extends Controller
     {
         //
     }
-    public function store(Request $request, NotificationService $notifService)
+    public function store(Request $request)
     {
         $user = $request->user();
         $locataire_id = $user->locataire->id ?? null;
@@ -65,10 +64,9 @@ class DemandeController extends Controller
         }
 
         $proprietaire_id = $logement->propriete->proprietaire->id;
-        $proprietaire_user = $logement->propriete->proprietaire->user;
 
         // 3. Vérification Doublon
-        $existeDeja = Demande::where('logement_id', $logement->id)
+        $existeDeja = \App\Models\Demande::where('logement_id', $logement->id)
             ->where('locataire_id', $locataire_id)
             ->where('status', '!=', 'annulee')
             ->exists();
@@ -78,7 +76,7 @@ class DemandeController extends Controller
         }
 
         // 4. Création de la demande
-        $demande = Demande::create([
+        $demande = \App\Models\Demande::create([
             'logement_id'     => $logement->id,
             'locataire_id'    => $locataire_id,
             'proprietaire_id' => $proprietaire_id,
@@ -86,39 +84,8 @@ class DemandeController extends Controller
             'status'          => 'en_attente'
         ]);
 
-        // 5. Notification AVEC NOM DU LOCATAIRE (C'est ici la modif !)
-        // 5. Notification AVEC TOUTES LES INFOS NÉCESSAIRES
-        // 5. Notification AVEC TOUTES LES INFOS NÉCESSAIRES
-        if ($proprietaire_user) {
-
-            // On construit proprement le nom complet
-            $nomComplet = ucfirst($user->prenom) . ' ' . ucfirst($user->nom);
-
-            // Capitalise le type de logement
-            $typelogement = ucfirst($logement->typelogement);
-
-            // ✅ UTILISE $typelogement ici (pas $logement->typelogement)
-            $message = "{$nomComplet} souhaite visiter votre {$typelogement} {$logement->numero} - {$logement->propriete->titre}.";
-
-            $notifService->sendToUser(
-                $proprietaire_user,
-                "Nouvelle demande !",
-                $message,
-                "nouvelle_demande",
-                [
-                    'demande_id' => (string)$demande->id,
-                    'logement_id' => (string)$logement->id,
-                    'logement_numero' => $logement->numero,
-                    'logement_type' => $typelogement,  // ✅ Tu peux aussi l'ajouter dans les données
-                    'propriete_nom' => $logement->propriete->titre,
-                    'locataire_id' => (string)$locataire_id,
-                    'locataire_nom' => $nomComplet,
-                    'locataire_telephone' => $user->telephone ?? 'Non renseigné'
-                ]
-            );
-        }
-
-
+        // ✅ 5. DISPATCH EVENT (Remplace toute la logique de notification)
+        event(new \App\Events\DemandeLogementRecue($demande));
 
         return response()->json([
             'success' => true,
@@ -127,16 +94,17 @@ class DemandeController extends Controller
         ], 201);
     }
 
+
     /**
      * ✅ ACCEPTER LA DEMANDE (Côté Propriétaire)
      * Cela signifie : "OK pour une visite"
      */
-    public function accepter($id, Request $request, NotificationService $notifService)
+    public function accepter($id, Request $request)
     {
-        $demande = Demande::findOrFail($id);
+        $demande = \App\Models\Demande::findOrFail($id);
         $user = $request->user();
 
-        // Sécurité : Vérifier que c'est bien le propriétaire de la demande qui clique
+        // Sécurité : Vérifier que c'est bien le propriétaire
         if ($demande->proprietaire_id !== $user->proprietaire->id) {
             return response()->json(['message' => 'Action non autorisée'], 403);
         }
@@ -144,47 +112,36 @@ class DemandeController extends Controller
         // Mise à jour du statut
         $demande->update(['status' => 'acceptee']);
 
-        //  Notification au LOCATAIRE
-        // "Votre demande a été acceptée, préparez-vous pour la visite !"
-        if ($demande->locataire && $demande->locataire->user) {
-            $notifService->sendToUser(
-                $demande->locataire->user,
-                "Demande acceptée ! ✅",
-                "Le propriétaire a accepté votre demande. Vous pouvez maintenant organiser une visite.",
-                "demande_acceptee" // Ce type permettra de rediriger vers l'écran détail
-            );
-        }
+        // ✅ DISPATCH EVENT (Remplace toute la logique de notification)
+        event(new \App\Events\DemandeAcceptee($demande));
 
         return response()->json(['message' => 'Demande acceptée. Le locataire a été notifié.']);
     }
 
 
+
     /**
      * ❌ REFUSER LA DEMANDE (Côté Propriétaire)
      */
-    public function refuser($id, Request $request, NotificationService $notifService)
+    public function refuser($id, Request $request)
     {
-        $demande = Demande::findOrFail($id);
+        $demande = \App\Models\Demande::findOrFail($id);
         $user = $request->user();
 
+        // Sécurité
         if ($demande->proprietaire_id !== $user->proprietaire->id) {
             return response()->json(['message' => 'Action non autorisée'], 403);
         }
 
+        // Mise à jour du statut
         $demande->update(['status' => 'refusee']);
 
-        // Notif au LOCATAIRE
-        if ($demande->locataire && $demande->locataire->user) {
-            $notifService->sendToUser(
-                $demande->locataire->user,
-                "Demande refusée ❌",
-                "Le propriétaire n'a pas donné suite à votre demande pour le moment.",
-                "demande_refusee"
-            );
-        }
+        // ✅ DISPATCH EVENT (Remplace toute la logique de notification)
+        event(new \App\Events\DemandeRefusee($demande));
 
         return response()->json(['message' => 'Demande refusée.']);
     }
+
 
     // ... Tes méthodes existantes (demandesLocataire, demandesProprietaire) ...
     public function demandesLocataire(Request $request)

@@ -29,7 +29,6 @@ class LogementController extends Controller
         return response()->json($logements, 200);
     }
 
-
     // Création d'un logement lié à une propriété spécifique
 
     public function store(LogementRequest $request, $proprieteId)
@@ -47,10 +46,6 @@ class LogementController extends Controller
         // ✅ Sinon, on retourne la ressource créée
         return response()->json($logement, 201);
     }
-
-
-
-
 
     // Affichage d'un logement par son ID
     public function show($id)
@@ -75,9 +70,6 @@ class LogementController extends Controller
         }
         return response()->json($logement, 200);
     }
-
-
-
 
 
     // Suppression d'un logement par son ID
@@ -127,18 +119,14 @@ class LogementController extends Controller
     // Mise à jour du statut de publication d'un logement
     public function updateStatusPublication(Request $request, $proprieteId, $id)
     {
-        $request->validate([
-            'statut_publication' => 'required|in:brouillon,publie'
-        ]);
-
-        $logement = $this->logementService->getByProprieteAndId($proprieteId, $id);
-        if (!$logement) {
-            return response()->json(['message' => 'Logement non trouvé dans cette propriété'], 404);
-        }
-
+        // ... après la mise à jour
         $logement = $this->logementService->updateStatus($id, $request->statut_publication);
 
-        return response()->json($logement, 200);
+        return response()->json([
+            'message' => 'Statut mis à jour avec succès.',
+            'statut_publication' => $logement->statut_publication, // On renvoie juste ce qui a changé
+            'id' => $logement->id // Utile pour confirmation
+        ], 200);
     }
 
 
@@ -235,11 +223,8 @@ class LogementController extends Controller
         // Charger les relations
         $logements->load(['propriete', 'photos']);
 
-        return response()->json($logements, 200);
+        return LogementProprietaireRessource::collection($logements);
     }
-
-
-
 
     //
 
@@ -288,7 +273,7 @@ class LogementController extends Controller
 
         $logements = $query->with(['propriete', 'photos'])->get();
 
-        return response()->json($logements, 200);
+       return LogementProprietaireRessource::collection($logements);
     }
 
 
