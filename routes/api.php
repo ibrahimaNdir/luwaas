@@ -122,6 +122,14 @@ Route::middleware(['auth:sanctum', 'locataire'])->prefix('locataire')->group(fun
     Route::post('/demandes', [DemandeController::class, 'store']);
     Route::get('/demandes', [DemandeController::class, 'demandesLocataire']);
 
+
+    Route::delete('/demandes/{id}', [DemandeController::class, 'destroy']);
+
+
+    Route::put('/demandes/{id}/annuler', [DemandeController::class, 'annuler']);
+
+
+
     // Logements du locataire
     Route::get('/logements', [LogementController::class, 'logementsLocataire']);
 

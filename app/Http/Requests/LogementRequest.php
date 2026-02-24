@@ -24,8 +24,12 @@ class LogementRequest extends FormRequest
         // Détermine les types de logement autorisés
         $typesAutorises = $this->getTypesLogementAutorises($propriete);
 
+        $numeroRule = ($propriete && strtolower($propriete->type) === 'immeuble')
+        ? ['required', 'string', 'max:50', Rule::unique('logements', 'numero')->where('propriete_id', $proprieteId)]
+        : ['nullable', 'string', 'max:50'];
+
         return [
-            'numero'         => 'required|string|max:50',
+            'numero'         => $numeroRule,
             'superficie'     => 'nullable|numeric|min:0',
             'nombre_pieces'  => 'nullable|integer|min:0',
             'meuble'         => 'required|boolean',

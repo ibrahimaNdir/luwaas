@@ -61,15 +61,65 @@ class LogementController extends Controller
 
     // Mise à jour d'un logement par son ID
 
-    public function update(LogementRequest $request, $proprieteId, $id)
+    /**
+     * Mise à jour des infos modifiables par le bailleur
+     * (status, prix, description, meuble...)
+     */
+    public function updateInfos(Request $request, $proprieteId, $id)
     {
-        // Vérifier que le logement appartient à la propriété $proprieteId
-        $logement = $this->logementService->update($request->validated(), $proprieteId, $id);
-        if (!$logement) {
-            return response()->json(['message' => 'Logement non trouvé'], 404);
+        $user = $request->user();
+        $proprietaire_id = $user->proprietaire->id ?? null;
+
+        if (!$proprietaire_id) {
+            return response()->json(['message' => 'Non autorisé.'], 403);
         }
-        return response()->json($logement, 200);
+
+        // Vérifier ownership
+        $logement = Logement::whereHas('propriete', function ($q) use ($proprietaire_id) {
+            $q->where('proprietaire_id', $proprietaire_id);
+        })
+            ->where('propriete_id', $proprieteId)
+            ->where('id', $id)
+            ->first();
+
+        if (!$logement) {
+            return response()->json(['message' => 'Logement non trouvé ou non autorisé.'], 404);
+        }
+
+        // Validation des champs modifiables
+        $validated = $request->validate([
+            'superficie'            => 'sometimes|numeric|min:0',
+            'nombre_pieces'         => 'sometimes|integer|min:0',
+            'meuble'                => 'sometimes|boolean',
+            'etat'                  => 'sometimes|in:bon,moyen,a_renover',
+            'description'           => 'sometimes|nullable|string',
+            'prix_loyer'            => 'sometimes|numeric|min:0',
+            'nombre_chambres'       => 'sometimes|integer|min:0',
+            'nombre_salles_de_bain' => 'sometimes|integer|min:0',
+            'status'                => 'sometimes|in:disponible,en_travaux,indisponible',
+            'statut_publication'    => 'sometimes|in:publie,brouillon',
+        ]);
+
+        // Règle métier : statut loue → non modifiable manuellement
+        if (
+            isset($validated['status']) &&
+            $validated['status'] === 'disponible' &&
+            $logement->status === 'loue'
+        ) {
+            return response()->json([
+                'message' => 'Impossible de modifier un logement actuellement loué.'
+            ], 422);
+        }
+
+        $logement->update($validated);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Logement mis à jour avec succès.',
+            'logement' => $logement
+        ]);
     }
+
 
 
     // Suppression d'un logement par son ID
@@ -273,7 +323,7 @@ class LogementController extends Controller
 
         $logements = $query->with(['propriete', 'photos'])->get();
 
-       return LogementProprietaireRessource::collection($logements);
+        return LogementProprietaireRessource::collection($logements);
     }
 
 

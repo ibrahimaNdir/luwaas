@@ -6,15 +6,14 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('paiements', function (Blueprint $table) {
             $table->id();
 
-            // Relations
+            // ═══════════════════════════════════════════════════════════
+            // RELATIONS
+            // ═══════════════════════════════════════════════════════════
             $table->foreignId('locataire_id')
                 ->constrained('locataires')
                 ->onDelete('cascade');
@@ -23,35 +22,54 @@ return new class extends Migration
                 ->constrained('baux')
                 ->onDelete('cascade');
 
-            // Montant attendu
+            // ═══════════════════════════════════════════════════════════
+            // TYPE DE PAIEMENT
+            // ═══════════════════════════════════════════════════════════
+            $table->enum('type', [
+                'signature',              // Paiement initial (caution + 1er mois)
+                'loyer_mensuel',          // Loyers mensuels
+                'caution_complementaire', // Complément caution
+            ])->default('loyer_mensuel');
+
+            // ═══════════════════════════════════════════════════════════
+            // MONTANTS
+            // ═══════════════════════════════════════════════════════════
             $table->decimal('montant_attendu', 10, 2);
-            $table->decimal('montant_paye', 10, 2)->default(0); // montant payé
-            $table->decimal('montant_restant', 10, 2)->default(0); // reste à payer
+            $table->decimal('montant_paye', 10, 2)->default(0);
+            $table->decimal('montant_restant', 10, 2)->default(0);
 
+            // ═══════════════════════════════════════════════════════════
+            // STATUT
+            // ═══════════════════════════════════════════════════════════
+            $table->enum('statut', [
+                'impayé',
+                'payé',
+                'partiel',
+                'en_retard',
+            ])->default('impayé');
 
-            $table->enum('statut', ['payé', 'partiel', 'en_retard', 'impayé'])
-                ->default('en_retard');
+            // ═══════════════════════════════════════════════════════════
+            // DATES
+            // ═══════════════════════════════════════════════════════════
+            $table->date('date_echeance');
+            $table->date('date_paiement')->nullable();
+            $table->string('periode')->nullable(); // "Février 2025"
 
-
-            // Échéance
-            $table->date('date_echeance');   // ex: 2025-02-05 (échéance de février)
-            $table->date('date_paiement')->nullable(); // ex: 2025-04-10 (payé en avril)
-            $table->string('periode')->nullable(); // ex: "Février 2025"
+            // ═══════════════════════════════════════════════════════════
+            // TIMESTAMPS & INDEX
+            // ═══════════════════════════════════════════════════════════
+            $table->timestamps();
 
             $table->index('bail_id');
             $table->index('locataire_id');
             $table->index('statut');
-
-            $table->timestamps();
+            $table->index('type');
+            $table->index('date_echeance');
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('paiements');
     }
 };
-

@@ -24,6 +24,19 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\DemandeRefusee::class => [
             \App\Listeners\NotifierLocataireDemandeRefusee::class,
         ],
+        \App\Events\DemandeAnnulee::class => [
+            \App\Listeners\NotifierBailleurDemandeAnnulee::class,
+        ],
+        \App\Events\BailCree::class => [
+            \App\Listeners\NotifierLocataireBailCree::class,
+        ],
+        \App\Events\BailSigne::class => [
+            \App\Listeners\NotifierBailleurBailSigne::class,
+        ],
+
+
+
+
     ];
 
 

@@ -12,19 +12,23 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-         $schedule->command('luwaas:rappel-loyers')
-                 ->dailyAt('06:00')
-                 ->timezone('Africa/Dakar');
-                 
+        $schedule->command('luwaas:rappel-loyers')
+            ->dailyAt('06:00')
+            ->timezone('Africa/Dakar');
+
 
         $schedule->command('luwaas:rappel-fin-bail')
-             ->dailyAt('08:00')
-             ->timezone('Africa/Dakar');  
+            ->dailyAt('08:00')
+            ->timezone('Africa/Dakar');
 
         // ✅ NOUVELLE LIGNE : Rappel retards (10h)
-    $schedule->command('luwaas:rappel-retards')
-             ->dailyAt('10:00')
-             ->timezone('Africa/Dakar');
+        $schedule->command('luwaas:rappel-retards')
+            ->dailyAt('10:00')
+            ->timezone('Africa/Dakar');
+
+        $schedule->command('luwaas:rappel-debut-bail')
+            ->dailyAt('00:00')
+            ->timezone('Africa/Dakar');
     }
 
     /**
@@ -32,7 +36,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands(): void
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }
