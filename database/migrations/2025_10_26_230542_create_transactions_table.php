@@ -11,6 +11,11 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
 
+             $table->string('reference_externe')
+              ->nullable()
+              ->unique();
+             
+
             // ═══════════════════════════════════════════════════════════
             // RELATION
             // ═══════════════════════════════════════════════════════════
@@ -45,11 +50,11 @@ return new class extends Migration
             // ═══════════════════════════════════════════════════════════
             // MÉTADONNÉES (pour webhook)
             // ═══════════════════════════════════════════════════════════
-            $table->text('metadata')->nullable(); // JSON pour infos supplémentaires
+            $table->json('metadata')->nullable(); // JSON pour infos supplémentaires
 
             // ═══════════════════════════════════════════════════════════
             // TIMESTAMPS & INDEX
-            // ═══════════════════════════════════════════════════════════
+            // ════════════════════════════
             $table->timestamps();
 
             $table->index('paiement_id');

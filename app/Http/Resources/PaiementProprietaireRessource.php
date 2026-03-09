@@ -11,14 +11,18 @@ class PaiementProprietaireRessource extends JsonResource
 
             // 'id' => $this->id,
             'logement' => [
-               //  'id'         => $this->id,
-                'periode'      => $this->periode,
-                'locataire'   => $this->bail->locataire->user->name,
-                'adresse'    => $this->statut,
-                'date_echeance'      =>$this->date_echeance ,
+                'id'         => $this->id,
+                'Type de paiement'      => $this->periode,
+                'locataire'   => $this->bail->locataire->user->prenom . ' ' . $this->bail->locataire->user->nom,
+                'date_echeance'  =>$this->date_echeance ,
                 'montant'   =>$this->montant_attendu,
+                'montant_paye'   =>$this->montant_paye,
+               // 'mode_paiement'   =>$this->transactions->mode,
+
                 'date_paiement' =>$this->date_paiement,
                 'statut' =>$this->statut,
+                'numero' => $this->bail->logement->numero,
+                'id_bail' => $this->bail_id,
                 // Ajoute d'autres champs utiles selon ton modèle logement
             ],
 

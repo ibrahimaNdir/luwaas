@@ -7,15 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class Transaction extends Model
 {
     protected $fillable = [
+        'reference_externe',
         'paiement_id',
+        'mode_paiement',
         'montant',
         'statut',
-        'provider',
-        'transaction_ref',
-        'frais',
-        'raw_response',
+        'reference',
+        'telephone_payeur',
+        'ip_address',
         'date_transaction',
-        'mode_paiement'
+        'metadata' 
     ];
 
     protected $casts = [

@@ -8,7 +8,7 @@ use App\Http\Controllers\API\LogementController;
 use App\Http\Controllers\API\PaiementController;
 use App\Http\Controllers\API\PropertyController;
 use App\Http\Controllers\API\TransactionController;
-use App\Http\Controllers\API\NotificationController;
+use App\Http\Controllers\API\WebhookController;
 use App\Services\NotificationService;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -24,7 +24,6 @@ use Illuminate\Support\Facades\Route;
 // 🌍 ROUTES PUBLIQUES (MODE GUEST)
 // ============================================
 
-
 // Recherche et liste des logements (accessibles sans connexion)
 Route::get('/logements/nearby', [LogementController::class, 'nearby']);
 Route::get('/logements/search', [LogementController::class, 'searchzone']);
@@ -35,6 +34,14 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/register', 'register');
     Route::post('/login', 'login');
 });
+
+// ============================================
+// 🌐 WEBHOOKS (SANS AUTH - Appelés par Wave/OM/PayPal)
+// ✅ NOUVELLES ROUTES
+// ============================================
+
+Route::post('/webhook/paydunya', [WebhookController::class, 'handlePaydunya']);
+Route::post('/webhook/paypal', [WebhookController::class, 'handlePaypal']);
 
 // ============================================
 // 🔐 ROUTES COMMUNES (Tous utilisateurs connectés)
@@ -64,13 +71,12 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
 
 Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->group(function () {
 
-    
+    // Géolocalisation
     Route::get('/regions', [GeoController::class, 'regions']);
     Route::get('/regions/{id}/departements', [GeoController::class, 'departements']);
     Route::get('/departements/{id}/communes', [GeoController::class, 'communes']);
 
     // Dashboard
-    
     Route::get('/dashboard', [PropertyController::class, 'dashboard']);
     Route::get('/stats-proprietes', [PropertyController::class, 'statsProprietes']);
 
@@ -97,19 +103,22 @@ Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->gro
     // Gestion des demandes
     Route::get('/demandes', [DemandeController::class, 'demandesProprietaire']);
     Route::patch('/demandes/{id}/accepter', [DemandeController::class, 'accepter']);
-    Route::patch('/demandes/{id}/refuserssss', [DemandeController::class, 'refuser']);
+    Route::patch('/demandes/{id}/refuser', [DemandeController::class, 'refuser']);
 
-    // Baux
-    Route::post('/bails', [BailController::class, 'store']);
+    // ═══════════════════════════════════════════════════════════
+    // BAUX (Unification bails → baux)
+    // ═══════════════════════════════════════════════════════════
+    Route::post('/baux', [BailController::class, 'store']);
     Route::get('/baux', [BailController::class, 'bauxBailleur']);
-    Route::get('/bail/{id}', [BailController::class, 'show']);
-    Route::delete('/bails/{id}', [BailController::class, 'destroy']);
-    Route::get('/bails/{id}/pdf', [BailController::class, 'exportPdf']);
+    Route::get('/baux/{id}', [BailController::class, 'show']);
+    Route::get('/baux/{id}/pdf', [BailController::class, 'exportPdf']);
+    Route::delete('/baux/{id}', [BailController::class, 'destroy']);
 
-    // Paiements
-    Route::get('/paiements', [PaiementController::class, 'paiementsForBailleur']);
-    Route::post('/transactions/{transaction}/valider-especes', [PaiementController::class, 'validerEspeces']);
-    
+    // ═══════════════════════════════════════════════════════════
+    // PAIEMENTS (Côté Bailleur)
+    // ✅ NOUVELLE ROUTE
+    // ═══════════════════════════════════════════════════════════
+    Route::get('/paiements', [PaiementController::class, 'paiementsProprietaire']);
 });
 
 // ============================================
@@ -118,31 +127,75 @@ Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->gro
 
 Route::middleware(['auth:sanctum', 'locataire'])->prefix('locataire')->group(function () {
 
-    // Demandes de location
+    // ═══════════════════════════════════════════════════════════
+    // DEMANDES DE LOCATION
+    // ═══════════════════════════════════════════════════════════
     Route::post('/demandes', [DemandeController::class, 'store']);
     Route::get('/demandes', [DemandeController::class, 'demandesLocataire']);
-
-
     Route::delete('/demandes/{id}', [DemandeController::class, 'destroy']);
+    Route::patch('/demandes/{id}/annuler', [DemandeController::class, 'annuler']);
 
-
-    Route::put('/demandes/{id}/annuler', [DemandeController::class, 'annuler']);
-
-
-
-    // Logements du locataire
+    // ═══════════════════════════════════════════════════════════
+    // LOGEMENTS
+    // ═══════════════════════════════════════════════════════════
     Route::get('/logements', [LogementController::class, 'logementsLocataire']);
 
-    // Baux du locataire
+    // ═══════════════════════════════════════════════════════════
+    // BAUX
+    // ✅ NOUVELLE ROUTE
+    // ═══════════════════════════════════════════════════════════
+    Route::get('/bail-en-attente', [BailController::class, 'getBailEnAttente']); // ⭐ NOUVEAU
     Route::get('/baux', [BailController::class, 'bauxLocataire']);
-    Route::get('/bail/{id}', [BailController::class, 'show']);
+    Route::get('/baux/{id}', [BailController::class, 'show']);
+    Route::get('/baux/{id}/pdf', [BailController::class, 'exportPdf']);
 
-    // Paiements
-    Route::get('/bailpaie', [BailController::class, 'bauxForLocataire']);
-    Route::get('/bail/{bailId}/paiements', [PaiementController::class, 'indexByPaiement']);
-    Route::get('/bail/{bailId}/paiements/{id}', [PaiementController::class, 'detailPaiement']);
-    Route::post('/bail/{bailId}/paiements/{paiement}', [PaiementController::class, 'payerEspeces']);
+    // ═══════════════════════════════════════════════════════════
+    // PAIEMENTS (Consultation)
+    // ✅ NOUVELLES ROUTES
+    // ═══════════════════════════════════════════════════════════
+    Route::get('/paiements', [PaiementController::class, 'index']);
+    Route::get('/paiements/stats', [PaiementController::class, 'statistiques']);
+
+
+
+    // ═══════════════════════════════════════════════════════════
+    // TRANSACTIONS (Mobile Money)
+    // ✅ TOUTES NOUVELLES ROUTES
+    // ═══════════════════════════════════════════════════════════
+    Route::get('/transactions', [TransactionController::class, 'index']); // ⭐ NOUVEAU
 });
+
+// ============================================
+// 💳 ROUTES PAIEMENTS & TRANSACTIONS (Locataire)
+// ✅ TOUTES NOUVELLES
+// ============================================
+
+Route::middleware('auth:sanctum')->group(function () {
+
+    // ═══════════════════════════════════════════════════════════
+    // PAIEMENTS (Routes communes - accessible locataire)
+    // ═══════════════════════════════════════════════════════════
+    Route::get('/paiements/{id}', [PaiementController::class, 'show']); // ⭐ NOUVEAU
+    Route::get('/baux/{bailId}/paiements', [PaiementController::class, 'paiementsBail']); // ⭐ NOUVEAU
+    Route::get('/baux/{bailId}/paiement-a-regler', [PaiementController::class, 'paiementARegler']); // ⭐ NOUVEAU
+
+    // ═══════════════════════════════════════════════════════════
+    // TRANSACTIONS - INITIER PAIEMENT (LA PLUS IMPORTANTE)
+    // ✅ TOUTES NOUVELLES ROUTES
+    // ═══════════════════════════════════════════════════════════
+    Route::post('/paiements/{paiementId}/payer', [TransactionController::class, 'initierPaiement']); // ⭐⭐⭐ CRITIQUE
+
+    // Consultation transactions
+    Route::get('/transactions/{id}', [TransactionController::class, 'show']); // ⭐ NOUVEAU
+    Route::get('/transactions/{id}/statut', [TransactionController::class, 'verifierStatut']); // ⭐ NOUVEAU
+
+    // Gestion transactions
+    Route::delete('/transactions/{id}', [TransactionController::class, 'annuler']); // ⭐ NOUVEAU
+    Route::post('/transactions/{id}/relancer', [TransactionController::class, 'relancer']); // ⭐ NOUVEAU
+});
+
+// ✅ Webhook public — PayDunya appelle directement
+//Route::post('/webhook/paydunya', [TransactionController::class, 'webhookPaydunya']);
 
 // ============================================
 // 🧪 ROUTE DE TEST (À SUPPRIMER EN PRODUCTION)

@@ -9,30 +9,45 @@ class Bail extends Model
     protected $table = 'baux';
 
     protected $fillable = [
-        'montant_loyer',
-        'date_debut',
+        // Relations
         'demande_id',
-        'date_fin',
-        'garantie',
-        'statut',
         'logement_id',
         'locataire_id',
-        'date_signature',
+
+        // Finances
+        'montant_loyer',
         'charges_mensuelles',
-        'charges_incluses',
+        'nombre_mois_caution',
+        'montant_caution_total',
+
+        // Dates & Échéances
+        'date_debut',
+        'date_fin',
         'jour_echeance',
         'renouvellement_automatique',
-        'caution'
+
+        // Statut
+        'statut',
+        'date_activation',
+
+        // Documents
+        'document_pdf_path',
+        'document_scan_path',
+
+        // Conditions
+        'conditions_speciales',
     ];
 
     protected $casts = [
-        'charges_incluses' => 'boolean',
         'renouvellement_automatique' => 'boolean',
-        'clauses_additionnelles' => 'array',
-        'date_debut' => 'date',
-        'date_fin' => 'date',
-        'date_signature' => 'date',
+        'date_debut'                 => 'date',
+        'date_fin'                   => 'date',
+        'date_activation'            => 'datetime',
     ];
+
+    // ═══════════════════════════════════════════
+    // RELATIONS
+    // ═══════════════════════════════════════════
 
     public function logement()
     {
@@ -44,28 +59,44 @@ class Bail extends Model
         return $this->belongsTo(Locataire::class);
     }
 
+    public function demande()
+    {
+        return $this->belongsTo(Demande::class);
+    }
 
     public function paiements()
     {
         return $this->hasMany(Paiement::class);
     }
 
-    public function getStatutDynamiqueAttribute()
+    // ═══════════════════════════════════════════
+    // ACCESSEURS
+    // ═══════════════════════════════════════════
+
+    public function getStatutDynamiqueAttribute(): string
     {
         $today = today();
-        if ($this->statut === 'resilie') {
-            return 'resilie';
+
+        if (in_array($this->statut, ['resilie', 'suspendu'])) {
+            return $this->statut;
         }
+
+        if ($this->statut === 'en_attente_paiement') {
+            return 'en_attente_paiement';
+        }
+
         if ($today->lt($this->date_debut)) {
-            return 'en_attente';
+            return 'en_attente_paiement';
         }
+
         if ($today->gte($this->date_debut) && $today->lte($this->date_fin)) {
             return 'actif';
         }
+
         if ($today->gt($this->date_fin)) {
             return 'expire';
         }
+
         return $this->statut;
     }
-
 }

@@ -17,6 +17,9 @@ class Locataire extends Model
 
     protected $casts = [
         'is_actif' => 'boolean',
+       
+
+
     ];
 
     public function user()
@@ -24,12 +27,12 @@ class Locataire extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function proprietaire()
+    public function proprietaires()
     {
-        return $this->belongsTo(Proprietaire::class);
+        return $this->hasManyThrough(Proprietaire::class, Bail::class);
     }
 
-    public function baux()
+    public function baux()  
     {
         return $this->hasMany(Bail::class);
     }

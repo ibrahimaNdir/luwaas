@@ -26,17 +26,36 @@
         .info-table td { padding: 2px 0; vertical-align: top; }
         .label { font-weight: bold; width: 130px; }
 
-        /* NOUVEAU : Articles Juridiques */
+        /* Articles Juridiques */
         .legal-section { margin-top: 20px; text-align: justify; }
         .legal-title { font-weight: bold; border-bottom: 1px solid #000; margin-bottom: 10px; padding-bottom: 2px; text-transform: uppercase;}
         .article { margin-bottom: 10px; }
         .article-title { font-weight: bold; text-decoration: underline; display: block; margin-bottom: 3px; }
 
-        /* Signature */
-        .signatures { margin-top: 40px; width: 100%; overflow: hidden; page-break-inside: avoid; }
-        .sig-box { float: left; width: 45%; }
-        .sig-box-right { float: right; width: 45%; }
-        .sig-line { margin-top: 50px; border-top: 1px solid #000; width: 100%; }
+        /* ✅ NOUVEAU : Cartouche de certification */
+        .certification-box {
+            border: 3px solid #28a745;
+            background-color: #f0fff4;
+            padding: 15px;
+            margin-top: 30px;
+            page-break-inside: avoid;
+        }
+        .cert-title {
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            color: #28a745;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        .cert-details {
+            background-color: #fff;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 11px;
+            line-height: 1.6;
+        }
         
         /* Clearfix pour les floats */
         .clearfix::after { content: ""; clear: both; display: table; }
@@ -48,7 +67,7 @@
         <!-- HEADER -->
         <div class="header">
             <h1>Contrat de Bail à Usage d'Habitation</h1>
-            <p>Réf: {{ $bail->reference ?? $bail->id }} | Fait le {{ date('d/m/Y') }}</p>
+            <p>Réf: {{ $bail->id }} | Signé électroniquement le {{ $bail->date_activation->format('d/m/Y à H:i') }}</p>
         </div>
 
         <!-- 1. LES PARTIES -->
@@ -67,13 +86,17 @@
             </div>
         </div>
 
-        <!-- 2. LE BIEN & CONDITIONS (En une seule ligne de boites si possible, sinon l'un sous l'autre) -->
+        <!-- 2. LE BIEN & CONDITIONS -->
         <div class="box">
             <div class="box-title">I. DÉSIGNATION ET CONDITIONS FINANCIÈRES</div>
             <table class="info-table">
                 <tr>
-                    <td class="label">Adresse du bien :</td>
-                    <td>{{ $bail->logement->numero ?? '' }} {{ $bail->logement->rue ?? '' }}, {{ $bail->logement->ville }}</td>
+                    <td class="label">Le Logement :</td>
+                    <td>{{ $bail->logement->numero ?? '' }}, {{ $bail->logement->propriete->adresse ?? '' }}</td>
+                </tr> 
+                <tr>
+                    <td class="label">Type :</td>
+                    <td>{{ $bail->logement->typelogement ?? '' }}</td>
                 </tr>
                 <tr>
                     <td class="label">Durée du bail :</td>
@@ -81,16 +104,24 @@
                 </tr>
                 <tr>
                     <td class="label">Loyer Mensuel :</td>
-                    <td><strong>{{ number_format($bail->montant, 0, ',', ' ') }} FCFA</strong></td>
+                    <td><strong>{{ number_format($bail->montant_loyer, 0, ',', ' ') }} FCFA</strong></td>
+                </tr>
+                <tr>
+                    <td class="label">Charges mensuelles :</td>
+                    <td>{{ number_format($bail->charges_mensuelles, 0, ',', ' ') }} FCFA</td>
                 </tr>
                 <tr>
                     <td class="label">Garantie locative :</td>
-                    <td>{{ number_format($bail->caution, 0, ',', ' ') }} FCFA</td>
+                    <td>{{ number_format($bail->montant_caution_total, 0, ',', ' ') }} FCFA ({{ $bail->nombre_mois_caution }} mois de loyer)</td>
+                </tr>
+                <tr>
+                    <td class="label">Jour d'échéance :</td>
+                    <td>Le {{ $bail->jour_echeance }} de chaque mois</td>
                 </tr>
             </table>
         </div>
 
-        <!-- 3. ARTICLES JURIDIQUES (AJOUTÉS ICI) -->
+        <!-- 3. ARTICLES JURIDIQUES -->
         <div class="legal-section">
             <div class="legal-title">II. CONDITIONS GÉNÉRALES</div>
 
@@ -101,31 +132,58 @@
 
             <div class="article">
                 <span class="article-title">Article 2 : Durée et Renouvellement</span>
-                Le présent bail est consenti pour la durée indiquée ci-dessus. À défaut de congé donné par l'une des parties dans les délais légaux avant l'expiration du contrat, celui-ci sera renouvelé par tacite reconduction pour une durée indéterminée ou selon les conditions prévues par la loi en vigueur.
+                Le présent bail est consenti pour la durée indiquée ci-dessus. 
+                @if($bail->renouvellement_automatique)
+                Le bail sera renouvelé automatiquement par tacite reconduction sauf dénonciation par l'une des parties dans les délais légaux.
+                @else
+                Le bail prendra fin à la date indiquée sauf accord des deux parties pour un renouvellement.
+                @endif
             </div>
 
             <div class="article">
-                <span class="article-title">Article 3 : Loyer et Obligations</span>
-                Le loyer est payable d'avance, au plus tard le <strong>{{ $bail->jour_paiement ?? '05' }}</strong> de chaque mois. En outre, le Locataire s'engage à user des lieux en "bon père de famille", à entretenir le bien locatif et à répondre des dégradations survenant pendant la durée du bail. Il s'acquittera également de ses factures de consommation (eau, électricité) durant toute l'occupation.
+                <span class="article-title">Article 3 : Loyer et Modalités de Paiement</span>
+                Le loyer est payable d'avance, au plus tard le <strong>{{ $bail->jour_echeance }}</strong> de chaque mois. Tout retard de paiement pourra entraîner l'application de pénalités conformément à la réglementation en vigueur.
             </div>
+
+            <div class="article">
+                <span class="article-title">Article 4 : Obligations du Locataire</span>
+                Le Locataire s'engage à user des lieux en "bon père de famille", à entretenir le bien locatif et à répondre des dégradations survenant pendant la durée du bail. Il s'acquittera également de ses factures de consommation (eau, électricité) durant toute l'occupation.
+            </div>
+
+            @if($bail->conditions_speciales)
+            <div class="article">
+                <span class="article-title">Article 5 : Conditions Particulières</span>
+                {{ $bail->conditions_speciales }}
+            </div>
+            @endif
         </div>
 
-        <!-- SIGNATURES -->
-        <div class="signatures clearfix">
-            <div class="sig-box">
-                <div style="font-weight:bold;">LE BAILLEUR</div>
-                <div style="font-size:10px; font-style:italic;">(Mention "Lu et approuvé")</div>
-                <div class="sig-line"></div>
+        <!-- ✅ CARTOUCHE DE CERTIFICATION (NOUVEAU) -->
+        <div class="certification-box">
+            <div class="cert-title">🔒 CERTIFICATION DE SIGNATURE ÉLECTRONIQUE</div>
+            
+            <p style="text-align: justify; margin-bottom: 10px;">
+                <strong>Le présent contrat a été signé électroniquement</strong> par le paiement de la garantie locative et du premier mois de loyer, 
+                conformément à la <strong>Loi n°2008-08 du 25 janvier 2008</strong> sur les transactions électroniques au Sénégal.
+            </p>
+            
+            <div class="cert-details">
+                <strong>Signé par :</strong> {{ $bail->locataire->user->prenom }} {{ $bail->locataire->user->nom }}<br>
+                <strong>Mode de signature :</strong> Paiement Mobile Money<br>
+                <strong>Date et heure de signature :</strong> {{ $bail->date_activation->format('d/m/Y à H:i:s') }}<br>
+                <strong>Montant payé :</strong> {{ number_format($bail->montant_caution_total + $bail->montant_loyer, 0, ',', ' ') }} FCFA<br>
+                <strong>Statut :</strong> ✅ Transaction validée et confirmée
             </div>
-            <div class="sig-box-right">
-                <div style="font-weight:bold;">LE LOCATAIRE</div>
-                <div style="font-size:10px; font-style:italic;">(Mention "Lu et approuvé")</div>
-                <div class="sig-line"></div>
-            </div>
+            
+            <p style="font-style: italic; font-size: 10px; text-align: justify; margin-top: 10px; color: #555;">
+                Conformément à l'article 16 de la loi n°2008-08, la signature électronique réalisée par paiement Mobile Money 
+                a la même valeur juridique qu'une signature manuscrite. Les deux parties reconnaissent avoir lu, compris et accepté 
+                l'ensemble des clauses du présent contrat.
+            </p>
         </div>
         
-        <div style="text-align: center; margin-top: 30px; font-size: 10px; color: #999;">
-            Document généré via Luwaas App le {{ date('d/m/Y H:i') }}
+        <div style="text-align: center; margin-top: 20px; font-size: 10px; color: #999;">
+            Document généré et certifié via Luwaas App le {{ now()->format('d/m/Y à H:i:s') }}
         </div>
     </div>
 

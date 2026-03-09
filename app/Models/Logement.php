@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Logement extends Model
 {
-    protected $fillable = [
+     protected $fillable = [
         'propriete_id',
         'numero',
         'superficie',
@@ -20,17 +20,18 @@ class Logement extends Model
         'statut_publication',
         'nombre_chambres',
         'nombre_salles_de_bain',
-
     ];
 
     protected $casts = [
-        'is_occupe' => 'boolean',
+        'statut_occupe' => 'string',   
         'meuble' => 'boolean',
     ];
+
     protected $attributes = [
-        'statut_occupe' => 'disponible',       // par défaut le logement est disponible
-        'statut_publication' => 'brouillon',   // par défaut en brouillon
+        'statut_occupe' => 'disponible',   // ✅ valeur par défaut
+        'statut_publication' => 'brouillon',
     ];
+
 
     public function propriete()
     {

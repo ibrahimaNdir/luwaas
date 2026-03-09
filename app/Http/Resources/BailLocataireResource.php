@@ -13,39 +13,46 @@ class BailLocataireResource extends JsonResource
      *
      * @return array<string, mixed>
      */
-    public function toArray(Request $request): array
+    public function toArray($request)
     {
-        return [
-             'id' => $this->id,
-            'logement' => [
-                //'ids'=> $this->locataire->id,
-               //'id'         => $this->id,
-                'titre'      => $this->logement->propriete->titre,
-                'adresse'    => $this->logement->propriete->adresse,
-                'type'       => $this->logement->propriete->type,
-                'numero'     => $this->logement->numero,
-                // Ajoute d'autres champs qui intéressent le locataire
+        $estActif = $this->statut === 'actif';
+
+        $base = [
+            'id'            => $this->id,
+            'statut'        => $this->statut,
+            'logement'      => [
+                'titre'   => $this->logement->propriete->titre ?? null,
+                'adresse' => $this->logement->propriete->adresse ?? null,
+                'type'    => $this->logement->propriete->type ?? null,
+                'numero'  => $this->logement->numero ?? null,
             ],
-            'bailleur' => [
-                'prenom'    => $this->logement->propriete->proprietaire->user->prenom ,
-                'nom'       => $this->logement->propriete->proprietaire->user->nom ,
-                'telephone' => $this->logement->propriete->proprietaire->user->telephone,
-            ],
-            'charges_mensuelles'   => $this->charges_mensuelles,
-            'caution'              => $this->caution,
-            'montant_loyer'        => $this->montant_loyer,
-            'cautions_a_payer'     => $this->cautions_a_payer,
-            'date_debut'           => Carbon::parse($this->date_debut)->format('Y-m-d'),
-            'date_fin'             => Carbon::parse($this->date_fin)->format('Y-m-d'),
-            'jour_echeance'        => $this->jour_echeance,
-            'renouvellement_automatique' => $this->renouvellement_automatique,
-            'statut'               => $this->statut_dynamique,  // dynamique et toujours à jour !
-            //'statut_db'            => $this->statut,            // optionnel
-
-
-
-            //'created_at'           => $this->created_at,
-            //'updated_at'           => $this->updated_at
+            'montant_loyer' => $this->montant_loyer,
+            'date_debut'    => $this->date_debut,
+            'date_fin'      => $this->date_fin,
         ];
+
+        // ❌ Bail pas encore payé → infos de base seulement
+        if (!$estActif) {
+            return array_merge($base, [
+                'message'  => 'Veuillez payer la caution pour activer votre bail.',
+                'paiement' => $this->paiements
+                    ->where('type', 'signature')
+                    ->first()?->only(['id', 'montant_attendu', 'statut']),
+            ]);
+        }
+
+        // ✅ Bail actif → toutes les infos
+        return array_merge($base, [
+            'bailleur' => [
+                'prenom'    => $this->logement->propriete->bailleur->prenom ?? null,
+                'nom'       => $this->logement->propriete->bailleur->nom ?? null,
+                'telephone' => $this->logement->propriete->bailleur->telephone ?? null,
+            ],
+            'charges_mensuelles'        => $this->charges_mensuelles,
+            'caution'                   => $this->caution,
+            'jour_echeance'             => $this->jour_echeance,
+            'renouvellement_automatique' => $this->renouvellement_automatique,
+            'historique_paiements'      => $this->paiements,
+        ]);
     }
 }

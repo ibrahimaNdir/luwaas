@@ -15,7 +15,7 @@ class DemandeLocataireResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-           // 'id' => $this->id,
+            'id' => $this->id,
             'date_demande' => $this->date_demande,
             'logement' => [
                 'titre' => $this->logement->propriete->titre, // adapte selon champs de ta table
@@ -27,6 +27,7 @@ class DemandeLocataireResource extends JsonResource
                 'prenom'=>$this->proprietaire->user->prenom,
                 'telephone' => $this->proprietaire->user->telephone, // à condition d’avoir ce champ
             ],
+            'status' => $this->status,
         ];
     }
 }

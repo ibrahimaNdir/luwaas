@@ -9,12 +9,14 @@ class Paiement extends Model
     protected $fillable = [
         'locataire_id',
         'bail_id',
+        'type',
         'montant_attendu',
+        'montant_paye',
+        'montant_restant',
         'statut',
-        'mois',
-        'annee',
-        'date_echeance' ,
-        'periode'
+        'date_echeance',
+        'date_paiement',
+        'periode',
     ];
 
     public function bail()

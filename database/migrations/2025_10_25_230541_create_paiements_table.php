@@ -29,7 +29,7 @@ return new class extends Migration
                 'signature',              // Paiement initial (caution + 1er mois)
                 'loyer_mensuel',          // Loyers mensuels
                 'caution_complementaire', // Complément caution
-            ])->default('loyer_mensuel');
+            ]);
 
             // ═══════════════════════════════════════════════════════════
             // MONTANTS

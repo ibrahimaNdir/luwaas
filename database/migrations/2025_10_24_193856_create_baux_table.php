@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('locataire_id')->constrained('locataires')->onDelete('cascade');
 
             // ═══════════════════════════════════════════════════════════
-            // FINANCES (Montants contractuels uniquement)
+            // FINANCES
             // ═══════════════════════════════════════════════════════════
             $table->integer('montant_loyer');
             $table->integer('charges_mensuelles')->default(0);
@@ -38,18 +38,21 @@ return new class extends Migration
             // STATUT DU BAIL
             // ═══════════════════════════════════════════════════════════
             $table->enum('statut', [
-                'en_attente_paiement',  // Créé, attend signature/paiement
-                'actif',                // Signé et actif
-                'expire',               // Terminé
-                'resilie',              // Résilié avant terme
-                'suspendu',             // Suspendu
+                'en_attente_paiement',
+                'actif',
+                'expire',
+                'resilie',
+                'suspendu',
             ])->default('en_attente_paiement');
+
+            // ✅ MAINTENANT on peut utiliser after('statut')
+            $table->timestamp('date_activation')->nullable();
 
             // ═══════════════════════════════════════════════════════════
             // DOCUMENTS
             // ═══════════════════════════════════════════════════════════
-            $table->string('document_pdf_path')->nullable(); // PDF final
-            $table->string('document_scan_path')->nullable(); // Scan optionnel
+            $table->string('document_pdf_path')->nullable();
+            $table->string('document_scan_path')->nullable();
 
             // ═══════════════════════════════════════════════════════════
             // CONDITIONS SPÉCIALES

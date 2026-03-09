@@ -20,7 +20,7 @@ return new class extends Migration
                 ->onDelete('cascade');
 
             $table->string('locataire_id')->unique(); // Identifiant unique propre au locataire
-            $table->string('cni')->unique();
+            $table->string('cni', 13)->unique();
             $table->boolean('is_actif')->default(true); // Activation/désactivation sans suppression
 
 

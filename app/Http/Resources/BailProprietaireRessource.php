@@ -16,7 +16,7 @@ class BailProprietaireRessource extends JsonResource
                 // 'id'         => $this->logement->id,
                 'titre'      => $this->logement->propriete->titre,
                 'adresse'    => $this->logement->propriete->adresse,
-                'type'       => $this->logement->type,
+                'type'       => $this->logement->typelogement,
                 'numero'     => $this->logement->numero,
                 // Ajoute d'autres champs utiles selon ton modèle logement
             ],
@@ -29,9 +29,9 @@ class BailProprietaireRessource extends JsonResource
                 // Ajoute autre info pertinente
             ],
             'charges_mensuelles'   => $this->charges_mensuelles,
-            'caution'              => $this->caution,
+            //'caution'              => $this->caution,
             'montant_loyer'        => $this->montant_loyer,
-            'cautions_a_payer'     => $this->cautions_a_payer,
+            'cautions_a_payer'     => $this->montant_caution_total,
             'date_debut'           => Carbon::parse($this->date_debut)->format('Y-m-d'),
             'date_fin'             => Carbon::parse($this->date_fin)->format('Y-m-d'),
             'jour_echeance'        => $this->jour_echeance,

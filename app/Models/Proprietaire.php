@@ -16,6 +16,7 @@ class Proprietaire extends Model
 
     protected $casts = [
         'is_actif' => 'boolean',
+        'cni' => 'encrypted',
     ];
 
 
@@ -25,10 +26,10 @@ class Proprietaire extends Model
         return $this->hasMany(Propriete::class);
     }
 
-    public function documents()
+   /* public function documents()
     {
         return $this->hasMany(Document::class);
-    }
+    }*/
 
     public function user()
     {

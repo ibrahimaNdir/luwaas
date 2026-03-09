@@ -27,13 +27,8 @@ class LogementLocataireResource extends JsonResource
             'nombre_pieces' => $this->nombre_pieces,
             'est_meuble' => (bool) $this->meuble,
             'etat' => ucfirst($this->etat),
-            'description ' => $this->description - $this->propriete->description,
+             'description' => $this->description . ' - ' . $this->propriete->description,
 
-            // Prix du loyer
-            'loyer_mensuel' => number_format($this->prix_loyer) . ' FCFA',
-            'mois_caution' => $this->mois_caution,
-            'mois_avance' => $this->mois_avance,
-            'caution_etalee' =>$this->caution_etalee,
             
             // Informations de la propriété liées
             'propriete' => [

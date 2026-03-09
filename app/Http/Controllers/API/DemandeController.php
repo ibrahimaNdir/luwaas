@@ -95,7 +95,7 @@ class DemandeController extends Controller
         }
 
         // ✅ 3. Vérification statut logement
-        if ($logement->status !== 'disponible') {
+        if ($logement->statut_occupe !== 'disponible') {
             return response()->json([
                 'message' => 'Ce logement n\'est plus disponible à la location.'
             ], 422);
