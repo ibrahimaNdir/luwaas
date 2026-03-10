@@ -11,13 +11,14 @@ class PaiementProprietaireRessource extends JsonResource
 
             // 'id' => $this->id,
             'logement' => [
-                'id'         => $this->id,
-                'Type de paiement'      => $this->periode,
+                'id' => $this->id,
+                'Type de paiement' => $this->transactions->first()?->mode_paiement ?? 'Non défini',
                 'locataire'   => $this->bail->locataire->user->prenom . ' ' . $this->bail->locataire->user->nom,
                 'date_echeance'  =>$this->date_echeance ,
-                'montant'   =>$this->montant_attendu,
+                'montant_attendu'   =>$this->montant_attendu,
                 'montant_paye'   =>$this->montant_paye,
-               // 'mode_paiement'   =>$this->transactions->mode,
+                'periode' => $this->periode,
+               
 
                 'date_paiement' =>$this->date_paiement,
                 'statut' =>$this->statut,

@@ -53,12 +53,96 @@ class PaiementController extends Controller
             return response()->json(['message' => 'Non autorisé.'], 403);
         }
 
-        $paiement = Paiement::with(['bail.logement', 'transactions'])
+        $paiement = Paiement::with(['bail.logement'])
             ->where('id', $id)
-            ->where('locataire_id', $locataire_id)
+            ->whereHas('bail', function ($q) use ($locataire_id) {
+                $q->where('locataire_id', $locataire_id);
+            })
             ->firstOrFail();
 
-        return new PaiementDetailsRessources($paiement);
+        // ✅ CAS 1 : Paiement PAYÉ
+        if ($paiement->statut === 'payé') {
+            // Charger la transaction validée
+            $paiement->load(['transactions' => function ($q) {
+                $q->where('statut', 'valide')
+                    ->orderByDesc('date_transaction')
+                    ->limit(1);
+            }]);
+
+            $transaction = $paiement->transactions->first();
+
+            return response()->json([
+                'paiement' => [
+                    'id' => $paiement->id,
+                    'type' => $paiement->type,
+                    'periode' => $paiement->periode,
+                    'montant_attendu' => $paiement->montant_attendu,
+                    'montant_paye' => $paiement->montant_paye,
+                    'statut' => $paiement->statut,
+                    'date_paiement' => $paiement->date_paiement,
+                    'date_echeance' => $paiement->date_echeance,
+                    'bail' => [
+                        'id' => $paiement->bail->id,
+                        'logement' => $paiement->bail->logement->numero ?? 'N/A',
+                        'type' => $paiement->bail->logement->typelogement ?? 'N/A',
+                    ],
+                ],
+                'transaction' => $transaction ? [
+                    'id' => $transaction->id,
+                    'reference' => $transaction->reference,
+                    'mode_paiement' => $transaction->mode_paiement,
+                    'montant' => $transaction->montant,
+                    'statut' => $transaction->statut,
+                    'date_transaction' => $transaction->date_transaction,
+                ] : null,
+                'peut_payer' => false,
+                'message' => '✅ Ce paiement a été effectué avec succès',
+            ]);
+        }
+
+        // ✅ CAS 2 : Paiement IMPAYÉ / EN RETARD / PARTIEL
+        else {
+            // Charger les transactions échouées ou en attente
+            $paiement->load(['transactions' => function ($q) {
+                $q->whereIn('statut', ['en_attente', 'rejete', 'echoue'])
+                    ->orderByDesc('created_at');
+            }]);
+
+            return response()->json([
+                'paiement' => [
+                    'id' => $paiement->id,
+                    'type' => $paiement->type,
+                    'periode' => $paiement->periode,
+                    'montant_attendu' => $paiement->montant_attendu,
+                    'montant_paye' => $paiement->montant_paye,
+                    'montant_restant' => $paiement->montant_restant,
+                    'statut' => $paiement->statut,
+                    'date_echeance' => $paiement->date_echeance,
+                    'bail' => [
+                        'id' => $paiement->bail->id,
+                        'logement' => $paiement->bail->logement->numero ?? 'N/A',
+                        'type' => $paiement->bail->logement->typelogement ?? 'N/A',
+                    ],
+                ],
+                'transactions_precedentes' => $paiement->transactions->map(function ($t) {
+                    return [
+                        'id' => $t->id,
+                        'reference' => $t->reference,
+                        'mode_paiement' => $t->mode_paiement,
+                        'statut' => $t->statut,
+                        'date' => $t->created_at,
+                    ];
+                }),
+                'peut_payer' => true,
+                'modes_paiement_disponibles' => [
+                    'wave',
+                    'orange_money',
+                    'free_money',
+                    'paypal',
+                ],
+                'message' => '⚠️ Ce paiement est en attente de règlement',
+            ]);
+        }
     }
 
     /**

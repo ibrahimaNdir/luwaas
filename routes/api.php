@@ -175,9 +175,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // ═══════════════════════════════════════════════════════════
     // PAIEMENTS (Routes communes - accessible locataire)
     // ═══════════════════════════════════════════════════════════
-    Route::get('/paiements/{id}', [PaiementController::class, 'show']); // ⭐ NOUVEAU
+    
+
+    
+    // Liste des paiements(payer et non payés) d'un bail spécifique
     Route::get('/baux/{bailId}/paiements', [PaiementController::class, 'paiementsBail']); // ⭐ NOUVEAU
+    // Paiement à régler (liste des impayés) d'un bail spécifique
     Route::get('/baux/{bailId}/paiement-a-regler', [PaiementController::class, 'paiementARegler']); // ⭐ NOUVEAU
+    // qui nous redrige vers la route de paiement mobile money (initierPaiement)
+    Route::get('/paiements/{id}', [PaiementController::class, 'show']);
 
     // ═══════════════════════════════════════════════════════════
     // TRANSACTIONS - INITIER PAIEMENT (LA PLUS IMPORTANTE)
