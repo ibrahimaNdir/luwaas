@@ -18,7 +18,7 @@ class PaiementProprietaireRessource extends JsonResource
                 'montant_attendu'   =>$this->montant_attendu,
                 'montant_paye'   =>$this->montant_paye,
                 'periode' => $this->periode,
-               
+                'type' => $this->type,
 
                 'date_paiement' =>$this->date_paiement,
                 'statut' =>$this->statut,

@@ -50,6 +50,11 @@ return [
     'mode'        => env('PAYDUNYA_MODE', 'test'),
 ],
 
+'whatsapp' => [
+    'token'           => env('WHATSAPP_TOKEN'),
+    'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+    'otp_template'    => env('WHATSAPP_OTP_TEMPLATE', 'luwaas_otp_verification'),
+],
 
 
 

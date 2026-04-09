@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use App\Services\Otp\OtpServiceInterface;
+use App\Services\Otp\EmailOtpService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -11,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // On dit à Laravel : quand tu vois OtpServiceInterface, injecte EmailOtpService
+        $this->app->bind(OtpServiceInterface::class, EmailOtpService::class);
     }
 
     /**

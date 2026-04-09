@@ -44,15 +44,15 @@ class BailLocataireResource extends JsonResource
         // ✅ Bail actif → toutes les infos
         return array_merge($base, [
             'bailleur' => [
-                'prenom'    => $this->logement->propriete->bailleur->prenom ?? null,
-                'nom'       => $this->logement->propriete->bailleur->nom ?? null,
-                'telephone' => $this->logement->propriete->bailleur->telephone ?? null,
+                'prenom'    => $this->logement->propriete->proprietaire->user->prenom ?? null,
+                'nom'       => $this->logement->propriete->proprietaire->user->nom ?? null,
+                'telephone' => $this->logement->propriete->proprietaire->user->telephone ?? null,
             ],
             'charges_mensuelles'        => $this->charges_mensuelles,
-            'caution'                   => $this->caution,
+            'caution'                   => $this->montant_caution_total,
             'jour_echeance'             => $this->jour_echeance,
             'renouvellement_automatique' => $this->renouvellement_automatique,
-            'historique_paiements'      => $this->paiements,
+            //'historique_paiements'      => $this->paiements,
         ]);
     }
 }

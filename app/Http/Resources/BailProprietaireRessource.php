@@ -13,34 +13,25 @@ class BailProprietaireRessource extends JsonResource
         return [
             'id' => $this->id,
             'logement' => [
-                // 'id'         => $this->logement->id,
-                'titre'      => $this->logement->propriete->titre,
-                'adresse'    => $this->logement->propriete->adresse,
-                'type'       => $this->logement->typelogement,
-                'numero'     => $this->logement->numero,
-                // Ajoute d'autres champs utiles selon ton modèle logement
+                'titre'  => $this->logement->propriete->titre,
+                'adresse' => $this->logement->propriete->adresse,
+                'type'   => $this->logement->typelogement,
+                'numero' => $this->logement->numero,
             ],
             'locataire' => [
-                // 'id'         => $this->locataire->id,
-                'nom'        => $this->locataire->user->nom,
-                'telephone'  => $this->locataire->user->telephone,
-                'prenom'  => $this->locataire->user->prenom
-                //'email'      => $this->locataire->email,
-                // Ajoute autre info pertinente
+                'nom'      => $this->locataire->user->nom,
+                'prenom'   => $this->locataire->user->prenom,
+                'telephone' => $this->locataire->user->telephone,
             ],
-            'charges_mensuelles'   => $this->charges_mensuelles,
-            //'caution'              => $this->caution,
             'montant_loyer'        => $this->montant_loyer,
-            'cautions_a_payer'     => $this->montant_caution_total,
+            'charges_mensuelles'   => $this->charges_mensuelles,
+            'caution'              => $this->montant_caution_total, // ✅ corrigé
+            'cautions_a_payer'     => $this->montant_caution_total, // ✅ restauré pour Flutter
             'date_debut'           => Carbon::parse($this->date_debut)->format('Y-m-d'),
             'date_fin'             => Carbon::parse($this->date_fin)->format('Y-m-d'),
             'jour_echeance'        => $this->jour_echeance,
             'renouvellement'       => $this->renouvellement_automatique,
-            'statut'               => $this->statut_dynamique,  // <-- toujours à jour côté API !
-            //'statut_db'            => $this->statut,            // optionnel : statut “brut” en DB
-            //'created_at'           => $this->created_at,
-            //'updated_at'           => $this->updated_at
+            'statut'               => $this->statut_dynamique,
         ];
     }
-
 }

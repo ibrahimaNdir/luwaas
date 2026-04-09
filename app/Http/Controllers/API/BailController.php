@@ -24,112 +24,123 @@ class BailController extends Controller
      * ═══════════════════════════════════════════════════════════════
      */
     public function store(Request $request)
-    {
-        $user = $request->user();
+{
+    $user = $request->user();
+    $proprietaire_id = $user->proprietaire->id ?? null;
 
-        $proprietaire_id = $user->proprietaire->id ?? null;
-        if (!$proprietaire_id) {
-            return response()->json(['message' => 'Non autorisé.'], 403);
-        }
-
-        $validated = $request->validate([
-            'logement_id'              => 'required|exists:logements,id',
-            'locataire_id'             => 'required|exists:locataires,id',
-            'demande_id'               => 'nullable|exists:demandes,id',
-            'montant_loyer'            => 'required|integer|min:1000',
-            'charges_mensuelles'       => 'required|integer|min:0',
-            'nombre_mois_caution'      => 'required|integer|min:1|max:6',
-            'date_debut'               => 'required|date|after_or_equal:today',
-            'date_fin'                 => 'required|date|after:date_debut',
-            'jour_echeance'            => 'required|integer|min:1|max:31',
-            'renouvellement_automatique' => 'required|boolean',
-            'conditions_speciales'     => 'nullable|string|max:2000',
-        ]);
-
-        // Vérifier que le logement appartient au propriétaire
-        $logement = Logement::with('propriete')->findOrFail($validated['logement_id']);
-
-        if ($logement->propriete->proprietaire_id !== $proprietaire_id) {
-            return response()->json(['message' => 'Ce logement ne vous appartient pas.'], 403);
-        }
-
-        // Vérifier que le logement est disponible
-        if ($logement->statut_occupe !== 'disponible') {
-            return response()->json(['message' => 'Ce logement n\'est pas disponible.'], 422);
-        }
-
-        // Vérifier qu'aucun bail actif n'existe déjà pour ce logement
-        $bailExistant = Bail::where('logement_id', $validated['logement_id'])
-            ->whereIn('statut', ['en_attente_paiement', 'actif'])
-            ->exists();
-
-        if ($bailExistant) {
-            return response()->json([
-                'message' => 'Un bail actif existe déjà pour ce logement.'
-            ], 422);
-        }
-
-        // Caution = loyer seul × nombre de mois (sans charges)
-        $montant_caution_total = $validated['montant_loyer'] * $validated['nombre_mois_caution'];
-
-        // Création du bail
-        $bail = Bail::create([
-            'logement_id'              => $validated['logement_id'],
-            'locataire_id'             => $validated['locataire_id'],
-            'demande_id'               => $validated['demande_id'] ?? null,
-            'montant_loyer'            => $validated['montant_loyer'],
-            'charges_mensuelles'       => $validated['charges_mensuelles'],
-            'nombre_mois_caution'      => $validated['nombre_mois_caution'],
-            'montant_caution_total'    => $montant_caution_total,
-            'date_debut'               => $validated['date_debut'],
-            'date_fin'                 => $validated['date_fin'],
-            'jour_echeance'            => $validated['jour_echeance'],
-            'renouvellement_automatique' => $validated['renouvellement_automatique'],
-            'conditions_speciales'     => $validated['conditions_speciales'] ?? null,
-            'statut'                   => 'en_attente_paiement',
-        ]);
-
-        // Paiement de signature (caution + 1er loyer)
-        $montantTotalSignature = $montant_caution_total + $validated['montant_loyer'];
-        $periode = Carbon::parse($validated['date_debut'])->isoFormat('MMMM YYYY');
-
-        Paiement::create([
-            'locataire_id'    => $bail->locataire_id,
-            'bail_id'         => $bail->id,
-            'type'            => 'signature',
-            'montant_attendu' => $montantTotalSignature,
-            'montant_paye'    => 0,
-            'montant_restant' => $montantTotalSignature, // ✅ AJOUTÉ
-            'statut'          => 'impayé',
-            'date_echeance'   => now()->addDays(7),
-            'periode'         => $periode,
-        ]);
-
-        // Mettre à jour la demande
-        if (!empty($validated['demande_id'])) {
-            Demande::find($validated['demande_id'])->update(['statut' => 'bail_cree']); // ✅ CORRIGÉ
-        }
-
-        event(new BailCree($bail));
-
-        Log::info("✅ Bail créé : ID {$bail->id}, Montant signature : {$montantTotalSignature} FCFA, Période : {$periode}");
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Bail créé avec succès. Le locataire a été notifié.',
-            'bail' => [
-                'id'                     => $bail->id,
-                'statut'                 => $bail->statut,
-                'montant_total_signature' => $montantTotalSignature,
-                'periode_couverte'       => $periode,
-                'details' => [
-                    'caution'       => $montant_caution_total,
-                    'premier_loyer' => $validated['montant_loyer'],
-                ],
-                'date_limite_paiement' => now()->addDays(7)->format('Y-m-d'),
-            ]
-        ], 201);
+    if (!$proprietaire_id) {
+        return response()->json(['message' => 'Non autorisé.'], 403);
     }
+
+    // ✅ VALIDATION : demande_id est OBLIGATOIRE
+    $validated = $request->validate([
+        'demande_id'               => 'required|exists:demandes,id', // ✅ OBLIGATOIRE
+        'montant_loyer'            => 'required|integer|min:1000',
+        'charges_mensuelles'       => 'required|integer|min:0',
+        'nombre_mois_caution'      => 'required|integer|min:1|max:6',
+        'date_debut'               => 'required|date|after_or_equal:today',
+        'date_fin'                 => 'required|date|after:date_debut',
+        'jour_echeance'            => 'required|integer|min:1|max:31',
+        'renouvellement_automatique' => 'required|boolean',
+        'conditions_speciales'     => 'nullable|string|max:2000',
+    ]);
+
+    // ✅ RÉCUPÉRER LA DEMANDE
+    $demande = Demande::with('logement.propriete')->findOrFail($validated['demande_id']);
+
+    // ✅ VÉRIFICATION 1 : La demande doit être ACCEPTÉE
+    if ($demande->status !== 'acceptee') {
+        return response()->json([
+            'message' => 'La demande doit être acceptée avant de créer un bail.',
+            'statut_actuel' => $demande->status,
+        ], 422);
+    }
+
+    // ✅ VÉRIFICATION 2 : La demande doit concerner un logement du bailleur
+    if ($demande->proprietaire_id !== $proprietaire_id) {
+        return response()->json(['message' => 'Cette demande ne vous concerne pas.'], 403);
+    }
+
+    // ✅ EXTRAIRE logement_id et locataire_id de la demande
+    $logementId = $demande->logement_id;
+    $locataireId = $demande->locataire_id;
+
+    // ✅ VÉRIFICATION 3 : Le logement doit être disponible
+    if ($demande->logement->statut_occupe !== 'disponible') {
+        return response()->json(['message' => 'Ce logement n\'est plus disponible.'], 422);
+    }
+
+    // ✅ VÉRIFICATION 4 : Pas de bail actif existant
+    $bailExistant = Bail::where('logement_id', $logementId)
+        ->whereIn('statut', ['en_attente_paiement', 'actif'])
+        ->exists();
+
+    if ($bailExistant) {
+        return response()->json([
+            'message' => 'Un bail actif existe déjà pour ce logement.'
+        ], 422);
+    }
+
+    // Calcul caution
+    $montant_caution_total = $validated['montant_loyer'] * $validated['nombre_mois_caution'];
+
+    // ✅ CRÉATION DU BAIL
+    $bail = Bail::create([
+        'logement_id'              => $logementId,
+        'locataire_id'             => $locataireId,
+        'demande_id'               => $demande->id,
+        'montant_loyer'            => $validated['montant_loyer'],
+        'charges_mensuelles'       => $validated['charges_mensuelles'],
+        'nombre_mois_caution'      => $validated['nombre_mois_caution'],
+        'montant_caution_total'    => $montant_caution_total,
+        'date_debut'               => $validated['date_debut'],
+        'date_fin'                 => $validated['date_fin'],
+        'jour_echeance'            => $validated['jour_echeance'],
+        'renouvellement_automatique' => $validated['renouvellement_automatique'],
+        'conditions_speciales'     => $validated['conditions_speciales'] ?? null,
+        'statut'                   => 'en_attente_paiement',
+    ]);
+
+    // Paiement de signature
+    $montantTotalSignature = $montant_caution_total + $validated['montant_loyer'];
+    $periode = Carbon::parse($validated['date_debut'])->isoFormat('MMMM YYYY');
+
+    Paiement::create([
+        'locataire_id'    => $locataireId,
+        'bail_id'         => $bail->id,
+        'type'            => 'signature',
+        'montant_attendu' => $montantTotalSignature,
+        'montant_paye'    => 0,
+        'montant_restant' => $montantTotalSignature,
+        'statut'          => 'impayé',
+        'date_echeance'   => now()->addDays(7),
+        'periode'         => $periode,
+    ]);
+
+    // ✅ METTRE À JOUR LA DEMANDE
+    $demande->update(['status' => 'bail_cree']);
+
+    event(new BailCree($bail));
+
+    Log::info("✅ Bail créé : ID {$bail->id} depuis demande {$demande->id}");
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Bail créé avec succès. Le locataire a été notifié.',
+        'bail' => [
+            'id'                     => $bail->id,
+            'statut'                 => $bail->statut,
+            'demande_id'             => $demande->id,
+            'montant_total_signature' => $montantTotalSignature,
+            'periode_couverte'       => $periode,
+            'details' => [
+                'caution'       => $montant_caution_total,
+                'premier_loyer' => $validated['montant_loyer'],
+            ],
+            'date_limite_paiement' => now()->addDays(7)->format('Y-m-d'),
+        ]
+    ], 201);
+}
 
     /**
      * ═══════════════════════════════════════════════════════════════

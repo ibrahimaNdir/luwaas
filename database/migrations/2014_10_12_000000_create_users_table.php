@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -17,21 +14,21 @@ return new class extends Migration
             $table->string('nom');
             $table->string('telephone')->unique();
             $table->string('email')->unique();
-            $table->string('password'); // mot de passe hashé en backend
+            $table->string('password');
             $table->boolean('is_active')->default(true);
             $table->enum('user_type', ['proprietaire', 'locataire', 'admin']);
-            $table->json('profile')->nullable(); // infos supplémentaires flexibles (adresse, photo, etc.)
-            $table->rememberToken(); // pour l’auth Laravel (sessions/cookies)
+            $table->json('profile')->nullable();
+            $table->rememberToken();
+            $table->timestamp('phone_verified_at')->nullable();
+            $table->string('phone_otp', 6)->nullable();
+            $table->timestamp('phone_otp_expires_at')->nullable();
             $table->timestamps();
 
-            $table->index('user_type'); // optimisation des requêtes par rôle
-        });
 
+            $table->index('user_type');
+        });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');
