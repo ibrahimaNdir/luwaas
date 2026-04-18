@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             DepartementSeeder::class,
             CommuneSeeder::class,
             AdminSeeder::class,
+            PlanSeeder::class, 
 
 
         ]);

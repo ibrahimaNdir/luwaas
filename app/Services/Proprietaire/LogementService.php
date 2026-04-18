@@ -5,59 +5,93 @@ namespace App\Services\Proprietaire;
 use App\Models\Logement;
 use App\Models\Propriete;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 class LogementService
 {
-    public function index()
+    // ─────────────────────────────────────────
+    // 1. LISTE — filtrée par propriétaire
+    // ─────────────────────────────────────────
+
+    public function index(int $proprietaireId)
     {
-        return Logement::all();
+        return Logement::whereHas('propriete', function ($q) use ($proprietaireId) {
+                    $q->where('proprietaire_id', $proprietaireId);
+                })
+                ->with(['photos', 'propriete'])
+                ->get();
     }
 
-    public function store(array $data, $ownerId)
+    // ─────────────────────────────────────────
+    // 2. CRÉER
+    // ─────────────────────────────────────────
+
+    public function store(array $data, int $ownerId): ?Logement
     {
-        // Vérifier que la propriété appartient au propriétaire connecté
         $propriete = Propriete::where('id', $data['propriete_id'])
             ->where('proprietaire_id', $ownerId)
             ->first();
 
-        if (!$propriete) {
-            return null; // Ou lever une exception métier
-        }
+        if (! $propriete) return null;
 
         return Logement::create($data);
     }
 
-    public function show($id)
+    // ─────────────────────────────────────────
+    // 3. VOIR
+    // ─────────────────────────────────────────
+
+    public function show(int $id): ?Logement
     {
-        return Logement::find($id);
+        return Logement::with(['photos', 'propriete'])->find($id);
     }
 
-    public function update(array $data, $proprieteId, $logementId)
+    // ─────────────────────────────────────────
+    // 4. MODIFIER
+    // ─────────────────────────────────────────
+
+    public function update(array $data, int $proprieteId, int $logementId): ?Logement
     {
         $logement = Logement::where('id', $logementId)
             ->where('propriete_id', $proprieteId)
             ->first();
 
-        if (!$logement) {
-            return null;
-        }
+        if (! $logement) return null;
+
         $logement->update($data);
         return $logement;
     }
 
-    public function destroy($proprieteId, $logementId)
+    // ─────────────────────────────────────────
+    // 5. SUPPRIMER — avec ownership + protection
+    // ─────────────────────────────────────────
+
+    public function destroy(int $proprieteId, int $logementId, int $ownerId): bool
     {
         $logement = Logement::where('id', $logementId)
             ->where('propriete_id', $proprieteId)
+            ->whereHas('propriete', function ($q) use ($ownerId) {
+                $q->where('proprietaire_id', $ownerId);
+            })
             ->first();
 
-        if (!$logement) {
-            return false;
+        if (! $logement) return false;
+
+        // ✅ Bloquer si logement loué
+        if ($logement->statut_occupe === 'loue') return false;
+
+        // Supprimer les photos du storage avant de supprimer le logement
+        foreach ($logement->photos as $photo) {
+            Storage::disk('public')->delete($photo->url);
         }
+
         $logement->delete();
         return true;
     }
 
+    // ─────────────────────────────────────────
+    // 6. RECHERCHE
+    // ─────────────────────────────────────────
 
     public function search(array $filters)
     {
@@ -73,64 +107,73 @@ class LogementService
             $query->where('typelogement', $filters['typelogement']);
         }
 
-        return $query->get();
+        return $query->with(['photos', 'propriete'])->get();
     }
 
-    public function getByProprieteAndId($proprieteId, $logementId)
+    // ─────────────────────────────────────────
+    // 7. PAR PROPRIÉTÉ
+    // ─────────────────────────────────────────
+
+    public function indexByPropriete(int $proprieteId)
     {
         return Logement::where('propriete_id', $proprieteId)
-            ->where('id', $logementId)
-            ->first();
+                       ->with(['photos'])
+                       ->get();
     }
 
-    public function updateStatus($id, $statut)
-    {
-        $logement = Logement::find($id);
-        if (!$logement) {
-            return null;
-        }
-        $logement->update(['statut_publication' => $statut]);
-        return $logement;
-    }
-
-
-    public function indexByPropriete($proprieteId)
-    {
-        return Logement::where('propriete_id', $proprieteId)->get();
-    }
-
-    public function countByPropriete($proprieteId)
+    public function countByPropriete(int $proprieteId): int
     {
         return Logement::where('propriete_id', $proprieteId)->count();
     }
 
+    public function getByProprieteAndId(int $proprieteId, int $logementId): ?Logement
+    {
+        return Logement::where('propriete_id', $proprieteId)
+                       ->where('id', $logementId)
+                       ->first();
+    }
+
+    // ─────────────────────────────────────────
+    // 8. STATUT PUBLICATION
+    // ─────────────────────────────────────────
+
+    public function updateStatus(int $id, string $statut, int $ownerId): ?Logement
+    {
+        $logement = Logement::whereHas('propriete', function ($q) use ($ownerId) {
+                        $q->where('proprietaire_id', $ownerId);
+                    })
+                    ->find($id);
+
+        if (! $logement) return null;
+
+        $logement->update(['statut_publication' => $statut]);
+        return $logement;
+    }
+
+    // ─────────────────────────────────────────
+    // 9. PHOTOS — via Laravel Storage
+    // ─────────────────────────────────────────
+
     public function addPhotos(int $logementId, array $files)
     {
         $logement = Logement::find($logementId);
-        if (!$logement) {
-            return null;
-        }
+        if (! $logement) return null;
 
-        $photos = collect();
+        $photos       = collect();
         $isFirstPhoto = $logement->photos()->count() === 0;
 
         foreach ($files as $index => $file) {
-            if (!$file instanceof UploadedFile) {
-                continue;
-            }
+            if (! $file instanceof UploadedFile) continue;
 
             $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
 
-            // ✅ CHANGEMENT : Stocke directement dans public/photos_logements
-            $file->move(public_path('photos_logements'), $filename);
-
-            // Le chemin à sauvegarder en base
-            $path = 'photos_logements/' . $filename;
+            // ✅ Via Laravel Storage (public disk)
+            $path = $file->storeAs('photos_logements', $filename, 'public');
 
             $photo = $logement->photos()->create([
-                'url' => $path, // Ex: "photos_logements/abc_123.jpg"
+                'url'        => $path,
                 'principale' => $isFirstPhoto && $index === 0,
-                'ordre' => $index + 1,
+                'ordre'      => $logement->photos()->count() + $index + 1,
             ]);
 
             $photos->push($photo);
@@ -139,15 +182,17 @@ class LogementService
         return $photos;
     }
 
+    // ─────────────────────────────────────────
+    // 10. LOGEMENTS PUBLIÉS PAR PROPRIÉTAIRE
+    // ─────────────────────────────────────────
 
-
-    public function getPublishedLogementsByProprietaire($proprietaireId)
+    public function getPublishedLogementsByProprietaire(int $proprietaireId)
     {
         return Logement::where('statut_publication', 'publie')
-            ->whereHas('propriete', function ($query) use ($proprietaireId) {
-                $query->where('proprietaire_id', $proprietaireId);
+            ->whereHas('propriete', function ($q) use ($proprietaireId) {
+                $q->where('proprietaire_id', $proprietaireId);
             })
-            ->with(['photos', 'propriete'])  // ✅ AJOUTE CETTE LIGNE
+            ->with(['photos', 'propriete'])
             ->get();
     }
 }
