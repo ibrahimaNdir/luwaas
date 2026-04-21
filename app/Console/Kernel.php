@@ -29,6 +29,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('luwaas:rappel-debut-bail')
             ->dailyAt('00:00')
             ->timezone('Africa/Dakar');
+            
+
+        $schedule->command('subscriptions:expire')
+            ->dailyAt('00:30')
+            ->timezone('Africa/Dakar');
     }
 
     /**

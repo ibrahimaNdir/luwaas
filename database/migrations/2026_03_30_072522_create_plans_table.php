@@ -32,7 +32,7 @@ return new class extends Migration
             $table->integer('locataires_max')->nullable();
             // ✅ renommé, null = illimité
 
-            $table->integer('cogestionnaires_max')->default(1);
+            $table->integer('cogestionnaires_max')->nullable();
             // ✅ ajout, 1 = seulement le propriétaire lui-même
 
             $table->json('features')->nullable();

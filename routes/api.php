@@ -13,6 +13,10 @@ use App\Services\NotificationService;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\API\Admin\AdminController; 
+use App\Http\Controllers\API\Admin\AdminProprietaireController;
+use App\Http\Controllers\API\Admin\AdminTransactionController;
+use App\Http\Controllers\API\Admin\AdminSubscriptionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,14 +60,43 @@ Route::middleware('auth:sanctum')->group(function () {
 // 👑 ROUTES ADMIN
 // ============================================
 
-Route::middleware(['auth:sanctum', 'admin'])->group(function () {
-    Route::get('/logements', [LogementController::class, 'index']);
-    Route::get('/proprietes', [PropertyController::class, 'index']);
-    Route::get('/baux', [BailController::class, 'index']);
-    Route::get('/demande', [DemandeController::class, 'index']);
-    Route::get('/paiement', [PaiementController::class, 'index']);
-    Route::get('/users', [AuthController::class, 'index']);
+// routes/api.php
+
+
+
+Route::middleware(['auth:sanctum', 'admin'])
+    ->prefix('admin')  // ✅ toutes les routes seront /api/admin/...
+    ->group(function () {
+
+    // ── Dashboard ──────────────────────────────
+    Route::get('/stats', [AdminController::class, 'stats']);
+
+    // ── Vues globales (tes routes existantes) ──
+    Route::get('/logements',  [LogementController::class,  'index']);
+    Route::get('/proprietes', [PropertyController::class,  'index']);
+    Route::get('/baux',       [BailController::class,      'index']);
+    Route::get('/demandes',   [DemandeController::class,   'index']); // ✅ "demandes" pas "demande"
+    Route::get('/paiements',  [PaiementController::class,  'index']); // ✅ "paiements" pas "paiement"
+    Route::get('/users',      [AuthController::class,      'index']);
+
+    // ── Propriétaires ──────────────────────────
+    Route::get('/proprietaires',                [AdminProprietaireController::class, 'index']);
+    Route::get('/proprietaires/{id}',           [AdminProprietaireController::class, 'show']);
+    Route::patch('/proprietaires/{id}/activate',[AdminProprietaireController::class, 'activate']);
+    Route::patch('/proprietaires/{id}/suspend', [AdminProprietaireController::class, 'suspend']);
+
+    // ── Transactions ───────────────────────────
+    Route::get('/transactions',         [AdminTransactionController::class, 'index']);
+    Route::get('/transactions/summary', [AdminTransactionController::class, 'summary']);
+    Route::get('/transactions/{id}',    [AdminTransactionController::class, 'show']);
+
+    // ── Abonnements & Plans ────────────────────
+    Route::get('/subscriptions',                          [AdminSubscriptionController::class, 'index']);
+    Route::get('/plans',                                  [AdminSubscriptionController::class, 'plans']);
+    Route::patch('/subscriptions/{proprietaireId}/change-plan', [AdminSubscriptionController::class, 'changePlan']);
+    Route::patch('/subscriptions/{proprietaireId}/cancel',      [AdminSubscriptionController::class, 'cancel']);
 });
+
 
 // ============================================
 // 🏠 ROUTES PROPRIETAIRE (BAILLEUR)

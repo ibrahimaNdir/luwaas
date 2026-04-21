@@ -36,28 +36,28 @@ class User extends Authenticatable
         'is_active'           => 'boolean',
         'profile'             => 'array',
         'phone_verified_at'   => 'datetime',
-        'phone_otp_expires_at'=> 'datetime',
+        'phone_otp_expires_at' => 'datetime',
     ];
 
     // 🆕 Helpers OTP
     public function hasVerifiedPhone(): bool
     {
         return !is_null($this->phone_verified_at);
-    } 
+    }
 
     public function markPhoneAsVerified(): void
-{
-    $this->forceFill([
-        'phone_verified_at'    => now(),
-        'phone_otp'           => null,
-        'phone_otp_expires_at'=> null,
-    ])->save();
-}
+    {
+        $this->forceFill([
+            'phone_verified_at'    => now(),
+            'phone_otp'           => null,
+            'phone_otp_expires_at' => null,
+        ])->save();
+    }
 
     public function isOtpExpired(): bool
     {
         return $this->phone_otp_expires_at &&
-               now()->isAfter($this->phone_otp_expires_at);
+            now()->isAfter($this->phone_otp_expires_at);
     }
 
     // Relations (inchangées)
@@ -80,4 +80,7 @@ class User extends Authenticatable
     {
         return $this->hasMany(Notification::class);
     }
+
+    
+   
 }

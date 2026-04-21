@@ -9,153 +9,121 @@ use App\Models\Propriete;
 use App\Services\Proprietaire\PropertyService;
 use Illuminate\Http\Request;
 
-
 class PropertyController extends Controller
 {
-    protected $propertyService;
-    /**
-     * OffreController constructor.
-     */
-    public function __construct()
-    {
-        $this->propertyService = new PropertyService();
-    }
-    /**
-     * Display a listing of the resource.
-     */
+    // ✅ Injection de dépendances au lieu de new PropertyService()
+    public function __construct(protected PropertyService $propertyService) {}
+
+    // ═══════════════════════════════════════════
+    // CRUD
+    // ═══════════════════════════════════════════
+
     public function index()
     {
-        $offres =  $this->propertyService->index();
-
-        return ProprieteResource::collection($offres);
-        //
+        return ProprieteResource::collection(
+            $this->propertyService->index()
+        );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-       public function store(ProprieteRequest $request)
+    public function store(ProprieteRequest $request)
     {
-        $proprietaire = auth()->user()->proprietaire;
-
-        if (!$proprietaire) {
-            return response()->json(['message' => 'Utilisateur non lié à un compte propriétaire.'], 403);
-        }
+        $proprietaireId = $this->proprietaireId($request);
 
         try {
-            $data = $request->validated();
-            $data['proprietaire_id'] = $proprietaire->id;
+            $propriete = $this->propertyService->creerPropriete(
+                $request->validated(),
+                $proprietaireId
+            );
 
-            $propriete = Propriete::create($data);
-
-            // Modification ici : on utilise la Resource pour formater la réponse
             return response()->json([
-                'message' => 'Propriété ajoutée avec succès',
-                'propriete' => new ProprieteResource($propriete)
+                'message'   => 'Propriété ajoutée avec succès.',
+                'propriete' => new ProprieteResource($propriete),
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Erreur lors de la création de la propriété : ' . $e->getMessage()
+                'message' => 'Erreur lors de la création : ' . $e->getMessage()
             ], 500);
         }
     }
 
-
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
-        Propriete::destroy($id);
-        return response()->json("",204);
-    }
-    public function countProperty(Request $request)
-    {
-        $ownerId = $request->user()->proprietaire->id;
-        $count = $this->propertyService->countByOwner($ownerId);
+        $proprietaireId = $this->proprietaireId(request());
 
-        return response()->json(['total_proprietes' => $count], 200);
-    }
+        $propriete = Propriete::where('id', $id)
+            ->where('proprietaire_id', $proprietaireId)
+            ->firstOrFail();
 
+        $propriete->delete();
 
-
-       public function dashboard(Request $request)
-    {
-        $proprietaire = $request->user()->proprietaire;
-
-        if (!$proprietaire) {
-            return response()->json(['message' => 'Bailleur non trouvé'], 404);
-        }
-
-        // ✅ Stats principales (temps réel + mois en cours)
-        $dashboard = $this->propertyService->dashboard($proprietaire->id);
-
-        // ✅ Historique 6 mois
-        $historique = $this->propertyService->historique6Mois($proprietaire->id);
-
-        return response()->json([
-            'dashboard' => $dashboard,
-            'historique_6_mois' => $historique,
-        ], 200);
+        return response()->json(null, 204);
     }
 
-    /**
-     * Stats détaillées par propriété (optionnel)
-     */
-    public function statsProprietes(Request $request)
-    {
-        $proprietaire = $request->user()->proprietaire;
+    // ═══════════════════════════════════════════
+    // LISTING & RECHERCHE
+    // ═══════════════════════════════════════════
 
-        if (!$proprietaire) {
-            return response()->json(['message' => 'Bailleur non trouvé'], 404);
-        }
-
-        $stats = $this->propertyService->statsParPropriete($proprietaire->id);
-
-        return response()->json(['proprietes' => $stats], 200);
-    }
-
-
-    // ✅ Rechercher / filtrer les propriétés d’un propriétaire
-    public function search(Request $request)
-    {
-        $ownerId = $request->user()->proprietaire->id;
-
-        $filters = $request->only(['region_id', 'type']);
-        $results = $this->propertyService->search($filters, $ownerId);
-
-        return response()->json($results, 200);
-    }
-
-    // ✅ Lister les propriétés d’un propriétaire
     public function allProperty(Request $request)
     {
-        $ownerId = $request->user()->proprietaire->id;
+        $proprietaireId = $this->proprietaireId($request);
 
-        $proprietes = $this->propertyService->indexByOwner($ownerId);
-
-        return ProprieteResource::collection($proprietes);
+        return ProprieteResource::collection(
+            $this->propertyService->indexByOwner($proprietaireId)
+        );
     }
 
+    public function search(Request $request)
+    {
+        $proprietaireId = $this->proprietaireId($request);
 
+        $results = $this->propertyService->search(
+            $request->only(['region_id', 'type']),
+            $proprietaireId
+        );
 
+        return response()->json($results);
+    }
 
+    public function countProperty(Request $request)
+    {
+        $proprietaireId = $this->proprietaireId($request);
+
+        return response()->json([
+            'total_proprietes' => $this->propertyService->countByOwner($proprietaireId)
+        ]);
+    }
+
+    // ═══════════════════════════════════════════
+    // DASHBOARD & STATS
+    // ═══════════════════════════════════════════
+
+    public function dashboard(Request $request)
+    {
+        $proprietaireId = $this->proprietaireId($request);
+
+        return response()->json([
+            'dashboard'         => $this->propertyService->dashboard($proprietaireId),
+            'historique_6_mois' => $this->propertyService->historique6Mois($proprietaireId),
+        ]);
+    }
+
+    public function statsProprietes(Request $request)
+    {
+        $proprietaireId = $this->proprietaireId($request);
+
+        return response()->json([
+            'proprietes' => $this->propertyService->statsParPropriete($proprietaireId)
+        ]);
+    }
+
+    // ═══════════════════════════════════════════
+    // HELPER PRIVÉ
+    // ═══════════════════════════════════════════
+
+    private function proprietaireId(Request $request): int
+    {
+        $id = $request->user()->proprietaire->id ?? null;
+        abort_if(!$id, 403, 'Non autorisé.');
+        return $id;
+    }
 }
