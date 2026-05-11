@@ -31,7 +31,7 @@ Luwaas intègre un système d'abonnement complet pour les bailleurs :
 
 ### Plans disponibles
 
-| Plan | Prix / mois | Logements | Locataires | Co-gestionnaires |
+| Plan | Prix / mois | Logements publier | Locataires | Co-gestionnaires |
 |------|-------------|-----------|------------|------------------|
 | **Starter** | 5 000 FCFA | 5 max | 5 max | 1 |
 | **Pro** | 15 000 FCFA | 20 max | Illimité | 3 |
