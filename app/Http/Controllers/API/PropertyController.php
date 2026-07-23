@@ -6,8 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ProprieteRequest;
 use App\Http\Resources\ProprieteResource;
 use App\Models\Propriete;
-use App\Services\Proprietaire\PropertyService;
+use App\Services\PropertyService;
 use Illuminate\Http\Request;
+use App\Http\Resources\ProprieteDetailResource;
 
 class PropertyController extends Controller
 {
@@ -59,6 +60,20 @@ class PropertyController extends Controller
         return response()->json(null, 204);
     }
 
+    public function update(ProprieteRequest $request, int $id)
+    {
+        $propriete = Propriete::where('id', $id)
+            ->where('proprietaire_id', $this->proprietaireId($request))
+            ->firstOrFail();
+
+        $propriete->update($request->validated());
+
+        return response()->json([
+            'message'   => 'Propriété mise à jour avec succès.',
+            'propriete' => new ProprieteResource($propriete->fresh()),
+        ]);
+    }
+
     // ═══════════════════════════════════════════
     // LISTING & RECHERCHE
     // ═══════════════════════════════════════════
@@ -93,9 +108,27 @@ class PropertyController extends Controller
         ]);
     }
 
+    
+        public function show(Request $request, int $id)
+    {
+        $proprietaireId = $request->user()->proprietaire->id;
+
+        $data = $this->propertyService->getDetailsWithStats($id, $proprietaireId);
+
+        if (!$data) {
+            return response()->json(['message' => 'Propriété non trouvée'], 404);
+        }
+
+        return new ProprieteDetailResource((object)$data);
+    }
+
     // ═══════════════════════════════════════════
     // DASHBOARD & STATS
     // ═══════════════════════════════════════════
+
+    
+
+    /*
 
     public function dashboard(Request $request)
     {
@@ -115,6 +148,8 @@ class PropertyController extends Controller
             'proprietes' => $this->propertyService->statsParPropriete($proprietaireId)
         ]);
     }
+
+    */
 
     // ═══════════════════════════════════════════
     // HELPER PRIVÉ

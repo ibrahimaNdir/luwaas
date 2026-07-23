@@ -31,46 +31,96 @@ class LogementService
         return Logement::create($data);
     }
 
-    public function show(int $id): ?Logement
-    {
-        return Logement::with(['propriete', 'photos'])->find($id);
-    }
 
-    public function destroy(int $proprieteId, int $id, int $ownerId): bool
-    {
-        $logement = Logement::whereHas('propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
-            ->where('propriete_id', $proprieteId)
-            ->where('id', $id)
-            ->first();
 
-        if (!$logement || $logement->statut_occupe === 'loue') return false;
-
-        $logement->delete();
-        return true;
-    }
-
-    // ═══════════════════════════════════════════
-    // MISE À JOUR
-    // ═══════════════════════════════════════════
-
-    public function updateInfos(int $proprieteId, int $id, int $proprietaireId, array $data): array
-    {
-        $logement = Logement::whereHas('propriete', fn($q) => $q->where('proprietaire_id', $proprietaireId))
+    public function destroy(
+        int $proprieteId,
+        int $id,
+        int $ownerId
+    ): array {
+        $logement = Logement::whereHas(
+            'propriete',
+            fn($q) => $q->where('proprietaire_id', $ownerId)
+        )
             ->where('propriete_id', $proprieteId)
             ->where('id', $id)
             ->first();
 
         if (!$logement) {
-            return ['error' => 'Logement non trouvé ou non autorisé.', 'status' => 404];
+            return [
+                'error' => 'Logement non trouvé ou non autorisé.',
+                'status' => 404,
+            ];
         }
 
-        if (isset($data['status']) && $data['status'] === 'disponible' && $logement->status === 'loue') {
-            return ['error' => 'Impossible de modifier un logement actuellement loué.', 'status' => 422];
+        if ($logement->statut_occupe === 'occupe') {
+            return [
+                'error' => 'Impossible de supprimer un logement actuellement occupé.',
+                'status' => 422,
+            ];
+        }
+
+        $logement->delete();
+
+        return [
+            'success' => true,
+        ];
+    }
+
+
+
+
+
+
+
+    // ═══════════════════════════════════════════
+    // MISE À JOUR
+    // ═══════════════════════════════════════════
+
+
+
+
+
+    public function updateInfos(
+        int $proprieteId,
+        int $id,
+        int $proprietaireId,
+        array $data
+    ): array {
+        $logement = Logement::whereHas(
+            'propriete',
+            fn($q) => $q->where('proprietaire_id', $proprietaireId)
+        )
+            ->where('propriete_id', $proprieteId)
+            ->where('id', $id)
+            ->first();
+
+        if (!$logement) {
+            return [
+                'error' => 'Logement non trouvé ou non autorisé.',
+                'status' => 404,
+            ];
+        }
+
+        // Bloque TOUTE modification si le logement est occupé
+        if ($logement->statut_occupe === 'occupe') {
+            return [
+                'error' => 'Impossible de modifier un logement actuellement occupé.',
+                'status' => 422,
+            ];
         }
 
         $logement->update($data);
-        return ['logement' => $logement];
+
+        return [
+            'logement' => $logement->fresh(),
+        ];
     }
+
+
+
+
+
 
     public function updateStatus(int $id, string $statut, int $ownerId): ?Logement
     {
@@ -101,9 +151,9 @@ class LogementService
 
             $photo = \App\Models\PhotoLogement::create([
                 'logement_id' => $logementId,
-                'url'         => $path,                               
-                'principale'  => $isFirstPhoto && $index === 0, 
-                'ordre'       => $currentCount + $index + 1,         
+                'url'         => $path,
+                'principale'  => $isFirstPhoto && $index === 0,
+                'ordre'       => $currentCount + $index + 1,
             ]);
 
             $photos[] = $photo;
@@ -145,6 +195,49 @@ class LogementService
             ->pluck('logement')
             ->unique('id')
             ->values();
+    }
+
+
+    public function showForProprietaire(int $ownerId, int $logementId): ?Logement
+    {
+        return Logement::whereHas('propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
+            ->where('id', $logementId)
+            ->with(['propriete', 'photos'])
+            ->first();
+    }
+
+    public function showForProprietaireByPropriete(int $ownerId, int $proprieteId, int $logementId): ?Logement
+    {
+        return Logement::whereHas('propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
+            ->where('propriete_id', $proprieteId)
+            ->where('id', $logementId)
+            ->with(['propriete', 'photos'])
+            ->first();
+    } 
+
+    // Dans LogementService.php, ajoute :
+
+    /**
+     * Récupère tous les logements publiés (public - sans auth)
+     */
+    public function getPublishedLogements()
+    {
+        return Logement::where('statut_publication', 'publie')
+            ->orderByDesc('is_highlighted')
+            ->orderByDesc('created_at')
+            ->with(['propriete', 'photos'])
+            ->get();
+    }
+
+    /**
+     * Récupère un logement publié par ID (public - sans auth)
+     */
+    public function getPublishedLogementById(int $id): ?Logement
+    {
+        return Logement::where('statut_publication', 'publie')
+            ->where('id', $id)
+            ->with(['propriete', 'photos'])
+            ->first();
     }
 
     // ═══════════════════════════════════════════
@@ -198,7 +291,10 @@ class LogementService
             $query->where('logements.prix_indicatif', '<=', $filters['prix_max']);
         }
 
-        return $query->with(['propriete', 'photos'])->get();
+        return $query->orderByDesc('logements.is_highlighted')
+            ->orderByDesc('logements.created_at')
+            ->with(['propriete', 'photos'])
+            ->get();
     }
 
     public function nearby(float $lat, float $lng, float $radius = 10)
@@ -216,7 +312,14 @@ class LogementService
             ->whereNotNull('proprietes.latitude')
             ->whereNotNull('proprietes.longitude')
             ->whereRaw("{$formula} <= ?", [$lat, $lng, $lat, $radius])
+            ->orderByDesc('logements.is_highlighted')
             ->orderByRaw($formula, [$lat, $lng, $lat])
+            ->with(['propriete', 'photos'])
+            ->get();
+    }
+    public function getAllLogementsByProprietaire(int $proprietaireId)
+    {
+        return Logement::whereHas('propriete', fn($q) => $q->where('proprietaire_id', $proprietaireId))
             ->with(['propriete', 'photos'])
             ->get();
     }

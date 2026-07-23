@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Proprietaire;
+namespace App\Services;
 
 use App\Models\Bail;
 use App\Models\Demande;
@@ -52,6 +52,46 @@ class PropertyService
 
         return $query->get();
     }
+
+       public function getDetailsWithStats(int $id, int $ownerId): ?array
+    {
+        $propriete = Propriete::where('id', $id)
+            ->where('proprietaire_id', $ownerId)
+            ->first();
+
+        if (!$propriete) {
+            return null;
+        }
+
+        // Logements
+        $logements = Logement::where('propriete_id', $id)->get();
+        $totalLogements = $logements->count();
+        $logementsOccupe = $logements->where('statut_occupe', 'occupe')->count();
+        $logementsDisponible = $logements->where('statut_occupe', 'disponible')->count();
+
+        // Baux actifs
+        $bauxActifs = Bail::whereHas('logement', fn($q) => $q->where('propriete_id', $id))
+            ->where('statut', 'actif')
+            ->count();
+
+        // Taux d'occupation
+        $tauxOccupation = $totalLogements > 0
+            ? round(($logementsOccupe / $totalLogements) * 100, 1)
+            : 0;
+
+        return [
+            'propriete' => $propriete,
+            'stats' => [
+                'total_logements' => $totalLogements,
+                'logements_occupe' => $logementsOccupe,
+                'logements_disponible' => $logementsDisponible,
+                'taux_occupation' => $tauxOccupation,
+                'baux_actifs' => $bauxActifs,
+            ],
+        ];
+    }
+
+/*
 
     // ═══════════════════════════════════════════
     // DASHBOARD
@@ -168,4 +208,11 @@ class PropertyService
                 : 0,
         ]);
     }
+
+*/
+
+
+
+
+    
 }

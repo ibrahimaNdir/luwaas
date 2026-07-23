@@ -33,34 +33,15 @@ class LogementController extends Controller
 
     public function store(LogementRequest $request, $proprieteId)
     {
-        $proprietaire = $request->user()->proprietaire;
-
-        if (!$proprietaire->canAddLogement()) {
-            return response()->json([
-                'message'     => "Vous avez atteint la limite de logements de votre plan ({$proprietaire->plan}).",
-                'code'        => 'LOGEMENT_LIMIT_REACHED',
-                'upgrade_url' => url('/plans'),
-                'limits'      => $proprietaire->planLimits(),
-            ], 403);
-        }
 
         $data                 = $request->validated();
         $data['propriete_id'] = $proprieteId;
 
-        $logement = $this->logementService->store($data, $proprietaire->id);
+        $logement = $this->logementService->store($data, $request->user()->proprietaire->id);
 
         abort_if(!$logement, 403, 'La propriété ne vous appartient pas.');
 
         return response()->json($logement, 201);
-    }
-
-    public function show($id)
-    {
-        $logement = $this->logementService->show($id);
-
-        abort_if(!$logement, 404, 'Logement non trouvé.');
-
-        return response()->json($logement);
     }
 
     public function updateInfos(Request $request, $proprieteId, $id)
@@ -76,8 +57,7 @@ class LogementController extends Controller
             'prix_loyer'            => 'sometimes|numeric|min:0',
             'nombre_chambres'       => 'sometimes|integer|min:0',
             'nombre_salles_de_bain' => 'sometimes|integer|min:0',
-            'status'                => 'sometimes|in:disponible,en_travaux,indisponible',
-            'statut_publication'    => 'sometimes|in:publie,brouillon',
+            //'statut_publication'    => 'sometimes|in:publie,brouillon',
         ]);
 
         $result = $this->logementService->updateInfos($proprieteId, $id, $proprietaireId, $validated);
@@ -93,11 +73,21 @@ class LogementController extends Controller
         ]);
     }
 
+
     public function destroy(Request $request, $proprieteId, $id)
     {
-        $deleted = $this->logementService->destroy($proprieteId, $id, $this->proprietaireId($request));
+        $result = $this->logementService->destroy(
+            $proprieteId,
+            $id,
+            $this->proprietaireId($request)
+        );
 
-        abort_if(!$deleted, 404, 'Logement non trouvé ou loué.');
+        if (isset($result['error'])) {
+            return response()->json(
+                ['message' => $result['error']],
+                $result['status']
+            );
+        }
 
         return response()->json(null, 204);
     }
@@ -115,7 +105,6 @@ class LogementController extends Controller
 
         $proprietaireId = $this->proprietaireId($request);
 
-        // Vérifier ownership propriété + logement
         $propriete = Propriete::where('id', $proprieteId)
             ->where('proprietaire_id', $proprietaireId)
             ->firstOrFail();
@@ -168,6 +157,7 @@ class LogementController extends Controller
         );
     }
 
+    // ✅ Check publication selon le plan
     public function updateStatusPublication(Request $request, $proprieteId, $id)
     {
         $request->validate([
@@ -186,6 +176,24 @@ class LogementController extends Controller
             'message'            => 'Statut mis à jour avec succès.',
             'statut_publication' => $logement->statut_publication,
             'id'                 => $logement->id,
+            'limits'             => $request->user()->proprietaire->planLimits(),
+        ]);
+    }
+
+    public function toggleHighlight(Request $request, $proprieteId, $id)
+    {
+        $logement = Logement::whereHas('propriete', fn($q) => $q->where('proprietaire_id', $this->proprietaireId($request)))
+            ->where('propriete_id', $proprieteId)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $logement->update([
+            'is_highlighted' => !$logement->is_highlighted
+        ]);
+
+        return response()->json([
+            'message'        => 'Mise en avant modifiée avec succès.',
+            'is_highlighted' => $logement->is_highlighted,
         ]);
     }
 
@@ -207,8 +215,13 @@ class LogementController extends Controller
         return LogementProprietaireRessource::collection(
             $this->logementService->searchZone(
                 $request->only([
-                    'region_id', 'departement_id', 'commune_id',
-                    'typelogement', 'meuble', 'nombre_pieces', 'prix_max',
+                    'region_id',
+                    'departement_id',
+                    'commune_id',
+                    'typelogement',
+                    'meuble',
+                    'nombre_pieces',
+                    'prix_max',
                 ])
             )
         );
@@ -230,6 +243,78 @@ class LogementController extends Controller
             )
         );
     }
+
+    public function getAllLogementsByProprietaire(Request $request)
+    {
+        return LogementProprietaireRessource::collection(
+            $this->logementService->getAllLogementsByProprietaire($this->proprietaireId($request))
+        );
+    }
+
+
+    public function show(Request $request, int $id)
+    {
+        $logement = $this->logementService->showForProprietaire(
+            $this->proprietaireId($request),
+            $id
+        );
+
+        if (!$logement) {
+            return response()->json([
+                'message' => 'Logement introuvable'
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => new LogementProprietaireRessource($logement)
+        ]);
+    }
+
+    public function showByPropriete(Request $request, int $proprieteId, int $id)
+    {
+        $logement = $this->logementService->showForProprietaireByPropriete(
+            $this->proprietaireId($request),
+            $proprieteId,
+            $id
+        );
+
+        if (!$logement) {
+            return response()->json([
+                'message' => 'Logement introuvable'
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => new LogementProprietaireRessource($logement)
+        ]);
+    }
+
+
+    // Dans LogementController.php, remplace les méthodes publiques par :
+
+    public function indexPublic()
+    {
+        return LogementLocataireResource::collection(
+            $this->logementService->getPublishedLogements()
+        );
+    }
+
+    public function showPublic(int $id)
+    {
+        $logement = $this->logementService->getPublishedLogementById($id);
+
+        if (!$logement) {
+            return response()->json([
+                'message' => 'Logement introuvable'
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => new LogementLocataireResource($logement)
+        ]);
+    }
+
+
 
     // ═══════════════════════════════════════════
     // HELPER PRIVÉ

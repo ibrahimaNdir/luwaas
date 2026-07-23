@@ -30,9 +30,7 @@ class ProprieteRequest extends FormRequest
             'departement_id'=> 'required|exists:departements,id',
             'commune_id'    => 'required|exists:communes,id',
             'adresse'       => 'nullable|string',
-            'latitude'      => 'nullable|numeric',
-            'longitude'     => 'nullable|numeric',
-
+         
         ];
     }
     public function messages(): array

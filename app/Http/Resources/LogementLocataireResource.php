@@ -7,49 +7,21 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class LogementLocataireResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         return [
-            'type' => ucfirst($this->type),
-            'numero' => $this->numero,  
-            'superficie' => $this->superficie . ' m²',
-
-            // Formatage avec F devant le nombre
-            'nombre_pieces_format' => $this->typelogement === 'studio'
-                ? 'Studio'
-                : 'F' . $this->nombre_pieces,
-
-            'nombre_pieces' => $this->nombre_pieces,
-            'est_meuble' => (bool) $this->meuble,
-            'etat' => ucfirst($this->etat),
-             'description' => $this->description . ' - ' . $this->propriete->description,
-
-            
-            // Informations de la propriété liées
+            'id' => $this->id,
+            'numero' => $this->numero,
+            'typelogement' => $this->typelogement,
+            'prix_loyer' => $this->prix_loyer,
+            'superficie' => $this->superficie,
+            'meuble' => $this->meuble,
+            'etat' => $this->etat,
             'propriete' => [
-                'adresse' => $this->propriete->adresse,
-                'commune' => $this->propriete->commune->nom,
-            ], 
-            
-            // Photos du logement - formatées proprement
-            'photo_principale' => $this->photos->where('principale', true)->first()
-                ? $this->photos->where('principale', true)->first()->url_complete
-                : ($this->photos->first() ? $this->photos->first()->url_complete : null),
-            
-            // ✅ CORRECTION : URLs complètes de toutes les photos
-            'photos' => $this->photos->map(function ($photo) {
-                return [
-                    'id' => $photo->id,
-                    'url' => $photo->url_complete, // ✅ URL complète grâce à l'accessor
-                    'est_principale' => (bool) $photo->principale,
-                ];
-            }),
+                'id' => $this->propriete?->id,
+                'titre' => $this->propriete?->titre,
+                'adresse' => $this->propriete?->adresse,
+            ],
         ];
-
     }
 }
