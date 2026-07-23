@@ -33,6 +33,9 @@ class EventServiceProvider extends ServiceProvider
         \App\Events\BailSigne::class => [
             \App\Listeners\NotifierBailleurBailSigne::class,
         ],
+        \App\Events\DemandeRappelJ7::class => [
+            \App\Listeners\NotifierRappelDemandeJ7::class,
+        ],
 
 
 

@@ -71,5 +71,8 @@ class Kernel extends HttpKernel
         'phone.verified' => \App\Http\Middleware\EnsurePhoneIsVerified::class,
         'subscribed' => \App\Http\Middleware\CheckSubscription::class,
         'super.admin' => \App\Http\Middleware\EnsureSuperAdmin::class,
+        'check.publication' => \App\Http\Middleware\CheckPublicationQuota::class,
+        'admin' => \App\Http\Middleware\AdminMiddleware::class,
+        'feature' => \App\Http\Middleware\CheckPlanFeature::class,
     ];
 }

@@ -8,9 +8,10 @@ use App\Models\Locataire;
 use App\Models\Proprietaire;
 use App\Models\User;
 use App\Services\Auth\AuthService;
-use App\Services\Otp\OtpServiceInterface;   // ← interface OTP
+use App\Services\Otp\OtpServiceInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Carbon\Carbon;
 
 class AuthController extends Controller
@@ -25,6 +26,10 @@ class AuthController extends Controller
         $this->authService = $authService;
         $this->otpService  = $otpService;
     }
+
+    // ─────────────────────────────────────────────
+    // LOGIN
+    // ─────────────────────────────────────────────
     public function login(Request $request)
     {
         $request->validate([
@@ -41,17 +46,19 @@ class AuthController extends Controller
         }
 
         return response()->json([
-            'message'  => 'Connexion réussie',
-            'user'     => new UserResource($data['user']),
-            'token'    => $data['token'],
-            'firebase_token' => $data['firebase_token'],  // ✅ AJOUTÉ
+            'message' => 'Connexion réussie',
+            'user' => new UserResource($data['user']),
+            'token' => $data['token'],
+            'firebase_token' => $data['firebase_token'],
             'redirect' => $data['redirect'],
         ]);
     }
 
+    // ─────────────────────────────────────────────
+    // REGISTER
+    // ─────────────────────────────────────────────
     public function register(Request $request)
     {
-        // 1. Validation des champs communs
         $request->validate([
             'prenom'    => 'required|string|max:255',
             'nom'       => 'required|string|max:255',
@@ -61,17 +68,9 @@ class AuthController extends Controller
             'user_type' => 'required|in:proprietaire,locataire',
         ]);
 
-        // 2. Validation spécifique pour propriétaire
-        if ($request->user_type === 'proprietaire') {
-            $request->validate([
-                'cni' => 'required|string|unique:proprietaires,cni',
-            ]);
-        }
-
         try {
             DB::beginTransaction();
 
-            // 3. Création du user via ton service
             $data = $this->authService->register([
                 'prenom'    => $request->prenom,
                 'nom'       => $request->nom,
@@ -84,19 +83,20 @@ class AuthController extends Controller
             /** @var \App\Models\User $user */
             $user = $data['user'];
 
-            // 4. Création du profil spécifique
             if ($request->user_type === 'proprietaire') {
                 $profil = Proprietaire::create([
-                    'user_id'             => $user->id,
-                    'cni'                 => $request->cni,
-                    'proprietaire_id'     => 'PROP-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
-                    'trial_ends_at'       => now()->addDays(30), // ← ajouter
-                    'subscription_status' => 'trial',            // ← ajouter
+                    'user_id'              => $user->id,
+                    'proprietaire_id'      => 'PROP-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
+                    'subscription_status'  => 'free_trial',
+                    'plan'                 => 'free',
+                    'billing_cycle'        => null,
+                    'trial_ends_at'        => Carbon::now()->addDays(15),
+                    'subscription_ends_at' => null,
+                    'cancelled_at'         => null,
                 ]);
             } else {
                 $profil = Locataire::create([
                     'user_id'      => $user->id,
-                    'cni'          => $request->cni,
                     'locataire_id' => 'LOC-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
                 ]);
             }
@@ -109,20 +109,18 @@ class AuthController extends Controller
                 ], 500);
             }
 
-            // 5. Génération + envoi OTP (par email)
             $otp = $this->otpService->generateOtp();
 
             $user->update([
-                'phone_otp'            => $otp,
-                'phone_otp_expires_at' => Carbon::now()->addMinutes(10),
+                'phone_otp'             => Hash::make($otp),
+                'phone_otp_expires_at'  => Carbon::now()->addMinutes(10),
+                'otp_attempts'          => 0,
             ]);
 
-            // Ici on utilise l'email comme destinataire
             $this->otpService->sendOtp($user->email, $otp);
 
             DB::commit();
 
-            // 6. On NE renvoie PAS de token ici
             return response()->json([
                 'message' => 'Inscription réussie. Un code OTP a été envoyé sur votre email.',
                 'user_id' => $user->id,
@@ -135,6 +133,10 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
+    // ─────────────────────────────────────────────
+    // VERIFY OTP
+    // ─────────────────────────────────────────────
     public function verifyOtp(Request $request)
     {
         $request->validate([
@@ -144,36 +146,55 @@ class AuthController extends Controller
 
         $user = User::findOrFail($request->user_id);
 
-        if ($user->hasVerifiedPhone()) {
-            return response()->json(['message' => 'Téléphone déjà vérifié.'], 422);
+        // Déjà vérifié
+        if ($user->phone_verified_at) {
+            return response()->json(['message' => 'Compte déjà vérifié.'], 422);
         }
 
+        // Trop de tentatives → forcer un nouveau code
+        if ($user->otp_attempts >= 3) {
+            return response()->json([
+                'message' => 'Trop de tentatives. Demandez un nouveau code.'
+            ], 429);
+        }
+
+        // Code expiré
         if ($user->isOtpExpired()) {
-            return response()->json(['message' => 'Code expiré. Demandez un nouveau code.'], 422);
+            return response()->json([
+                'message' => 'Code expiré. Demandez un nouveau code.'
+            ], 422);
         }
 
-        if ($user->phone_otp !== $request->otp) {
-            return response()->json(['message' => 'Code incorrect.'], 422);
+        // Code incorrect → incrémenter tentatives
+        if (! Hash::check($request->otp, $user->phone_otp)) {
+            $user->increment('otp_attempts');
+            $remaining = 3 - $user->fresh()->otp_attempts;
+            return response()->json([
+                'message' => "Code incorrect. {$remaining} tentative(s) restante(s)."
+            ], 422);
         }
 
-        // ✅ OTP valide
+        // ✅ OTP valide → activer le compte + nettoyer
         $user->update([
             'phone_verified_at'    => Carbon::now(),
             'phone_otp'            => null,
             'phone_otp_expires_at' => null,
+            'otp_attempts'         => 0,
         ]);
 
-        // Maintenant on donne le token
+        // Token donné seulement ici
         $token = $user->createToken('luwaas-token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Téléphone vérifié ! Bienvenue sur Luwaas.',
+            'message' => 'Compte vérifié ! Bienvenue sur Luwaas.',
             'token'   => $token,
             'user'    => new UserResource($user),
         ]);
     }
 
-    // 🆕 MÉTHODE : Renvoyer l'OTP
+    // ─────────────────────────────────────────────
+    // RESEND OTP
+    // ─────────────────────────────────────────────
     public function resendOtp(Request $request)
     {
         $request->validate([
@@ -182,23 +203,29 @@ class AuthController extends Controller
 
         $user = User::findOrFail($request->user_id);
 
-        if ($user->hasVerifiedPhone()) {
-            return response()->json(['message' => 'Téléphone déjà vérifié.'], 422);
+        // Déjà vérifié → inutile de renvoyer
+        if ($user->phone_verified_at) {
+            return response()->json(['message' => 'Compte déjà vérifié.'], 422);
         }
 
         $otp = $this->otpService->generateOtp();
 
         $user->update([
-            'phone_otp'            => $otp,
+            'phone_otp'            => Hash::make($otp), // ✅ hashé
             'phone_otp_expires_at' => Carbon::now()->addMinutes(10),
+            'otp_attempts'         => 0, // ✅ reset les tentatives
         ]);
 
-        // Toujours via email à ce stade
         $this->otpService->sendOtp($user->email, $otp);
 
-        return response()->json(['message' => 'Nouveau code envoyé sur votre email !']);
+        return response()->json([
+            'message' => 'Nouveau code envoyé sur votre email !'
+        ]);
     }
 
+    // ─────────────────────────────────────────────
+    // LOGOUT
+    // ─────────────────────────────────────────────
     public function logout(Request $request)
     {
         $this->authService->logout($request->user());
@@ -206,6 +233,9 @@ class AuthController extends Controller
         return response()->json(['message' => 'Déconnexion réussie']);
     }
 
+    // ─────────────────────────────────────────────
+    // INDEX (offres)
+    // ─────────────────────────────────────────────
     public function index()
     {
         $offres = $this->authService->index();

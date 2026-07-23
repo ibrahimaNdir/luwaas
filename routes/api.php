@@ -3,156 +3,212 @@
 use App\Http\Controllers\API\AuthController;
 use App\Http\Controllers\API\BailController;
 use App\Http\Controllers\API\DemandeController;
+use App\Http\Controllers\API\ProprietaireDashboardController;
 use App\Http\Controllers\API\GeoController;
 use App\Http\Controllers\API\LogementController;
-use App\Http\Controllers\API\PaiementController;
+use App\Http\Controllers\API\PaymentController;
 use App\Http\Controllers\API\PropertyController;
 use App\Http\Controllers\API\TransactionController;
 use App\Http\Controllers\API\WebhookController;
-use App\Services\NotificationService;
-use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\API\Admin\AdminController; 
+use App\Http\Controllers\API\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminProprietaireController;
 use App\Http\Controllers\API\Admin\AdminTransactionController;
 use App\Http\Controllers\API\Admin\AdminSubscriptionController;
+use App\Http\Controllers\API\LocataireDashboardController;
+use App\Http\Controllers\API\Admin\AdminLogementController;
+use App\Http\Controllers\API\Admin\AdminPropertyController;
+use App\Http\Controllers\API\Admin\AdminBailController;
+use App\Http\Controllers\API\Admin\AdminDemandeController;
+use App\Http\Controllers\API\Admin\AdminUserController;
+use App\Http\Controllers\API\Admin\AdminPaymentController;
 
-/*
-|--------------------------------------------------------------------------
-| API Routes - Luwaas
-|--------------------------------------------------------------------------
-*/
+
+use App\Models\User;
+use App\Services\NotificationService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 // ============================================
-// 🌍 ROUTES PUBLIQUES (MODE GUEST)
+// 🌍 ROUTES PUBLIQUES
 // ============================================
 
-// Recherche et liste des logements (accessibles sans connexion)
 Route::get('/logements/nearby', [LogementController::class, 'nearby']);
 Route::get('/logements/search', [LogementController::class, 'searchzone']);
-Route::get('/logements/{id}', [LogementController::class, 'show']);
+Route::get('/logements', [LogementController::class, 'indexPublic']);
+Route::get('/logements/{id}', [LogementController::class, 'showPublic']);
 
-// Auth publique
 Route::controller(AuthController::class)->group(function () {
     Route::post('/register', 'register');
     Route::post('/login', 'login');
+    Route::post('/verify-otp', 'verifyOtp');
+    Route::post('/resend-otp', 'resendOtp');
 });
-
 // ============================================
-// 🌐 WEBHOOKS (SANS AUTH - Appelés par Wave/OM/PayPal)
-// ✅ NOUVELLES ROUTES
+// 🌐 WEBHOOKS (SANS AUTH — PayDunya appelle sans token)
 // ============================================
 
-Route::post('/webhook/paydunya', [WebhookController::class, 'handlePaydunya']);
-Route::post('/webhook/paypal', [WebhookController::class, 'handlePaypal']);
+Route::post('/webhook/paydunya', [WebhookController::class, 'handle']);
 
 // ============================================
-// 🔐 ROUTES COMMUNES (Tous utilisateurs connectés)
+// 🔐 ROUTES COMMUNES (auth uniquement)
 // ============================================
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn(Request $request) => $request->user());
     Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Plans (visible par tout utilisateur authentifié)
+    Route::get('/plans', [PaymentController::class, 'plans']);
+
+    // Paiements bail/loyer (commun locataire + proprietaire)
+    Route::get('/baux/{bailId}/paiements', [PaymentController::class, 'paiementsBail']);
+    Route::get('/baux/{bailId}/paiement-a-regler', [PaymentController::class, 'paiementARegler']);
+    Route::get('/paiements/{id}', [PaymentController::class, 'show']);
+    Route::get('/paiements/{id}/quittance-pdf', [PaymentController::class, 'exportQuittancePdf']);
+
+    // Transactions (commun)
+    Route::get('/transactions/{id}', [TransactionController::class, 'show']);
+    Route::get('/transactions/{id}/statut', [TransactionController::class, 'verifierStatut']);
+    // Route::post('/transactions/{id}/relancer', [PaymentController::class, 'relancer']);
+    // Route::post('/transactions/{id}/annuler', [PaymentController::class, 'annulerTransaction']);
 });
 
 // ============================================
 // 👑 ROUTES ADMIN
 // ============================================
 
-// routes/api.php
-
-
-
 Route::middleware(['auth:sanctum', 'admin'])
-    ->prefix('admin')  // ✅ toutes les routes seront /api/admin/...
+    ->prefix('admin')
+    ->group(function () {
+        Route::get('/stats', [AdminController::class, 'stats']);
+
+        Route::get('/logements', [AdminLogementController::class, 'index']);
+        Route::get('/logements/{id}', [AdminLogementController::class, 'show']);
+
+        Route::get('/proprietes', [AdminPropertyController::class, 'index']);
+        Route::get('/proprietes/{id}', [AdminPropertyController::class, 'show']);
+
+        Route::get('/baux', [AdminBailController::class, 'index']);
+        Route::get('/baux/{id}', [AdminBailController::class, 'show']);
+
+        Route::get('/demandes', [AdminDemandeController::class, 'index']);
+        Route::get('/demandes/{id}', [AdminDemandeController::class, 'show']);
+
+        Route::get('/paiements', [AdminPaymentController::class, 'index']);
+
+        Route::get('/users', [AdminUserController::class, 'index']);
+        Route::get('/users/{id}', [AdminUserController::class, 'show']);
+
+        Route::get('/proprietaires', [AdminProprietaireController::class, 'index']);
+        Route::get('/proprietaires/{id}', [AdminProprietaireController::class, 'show']);
+        Route::patch('/proprietaires/{id}/activate', [AdminProprietaireController::class, 'activate']);
+        Route::patch('/proprietaires/{id}/suspend', [AdminProprietaireController::class, 'suspend']);
+
+        Route::get('/transactions', [AdminTransactionController::class, 'index']);
+        Route::get('/transactions/summary', [AdminTransactionController::class, 'summary']);
+        Route::get('/transactions/{id}', [AdminTransactionController::class, 'show']);
+
+        Route::get('/subscriptions', [AdminSubscriptionController::class, 'index']);
+        Route::get('/plans', [AdminSubscriptionController::class, 'plans']);
+        Route::patch('/subscriptions/{proprietaireId}/change-plan', [AdminSubscriptionController::class, 'changePlan']);
+        Route::patch('/subscriptions/{proprietaireId}/cancel', [AdminSubscriptionController::class, 'cancel']);
+    });
+
+// ============================================
+// 🏠 ROUTES PROPRIETAIRE
+// ============================================
+
+// Sans subscribed → gestion abonnement (le bailleur doit pouvoir payer même sans abonnement)
+Route::middleware(['auth:sanctum', 'proprietaire'])->group(function () {
+    Route::get('/abonnements/statut',      [TransactionController::class, 'statutAbonnement']);
+    Route::post('/abonnements/initier',    [PaymentController::class, 'initierAbonnement']);
+    Route::post('/abonnements/annuler',    [PaymentController::class, 'annulerAbonnement']);
+    Route::post('/abonnements/renouveler', [PaymentController::class, 'renouvelerAbonnement']);
+    //Route::get('/abonnements/historique',  [TransactionController::class, 'indexProprietaire']);
+});
+
+// Avec subscribed → accès backoffice complet
+Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
+    ->prefix('proprietaire')
     ->group(function () {
 
-    // ── Dashboard ──────────────────────────────
-    Route::get('/stats', [AdminController::class, 'stats']);
+        // Géolocalisation
+        Route::get('/regions', [GeoController::class, 'regions']);
+        Route::get('/regions/{id}/departements', [GeoController::class, 'departements']);
+        Route::get('/departements/{id}/communes', [GeoController::class, 'communes']);
 
-    // ── Vues globales (tes routes existantes) ──
-    Route::get('/logements',  [LogementController::class,  'index']);
-    Route::get('/proprietes', [PropertyController::class,  'index']);
-    Route::get('/baux',       [BailController::class,      'index']);
-    Route::get('/demandes',   [DemandeController::class,   'index']); // ✅ "demandes" pas "demande"
-    Route::get('/paiements',  [PaiementController::class,  'index']); // ✅ "paiements" pas "paiement"
-    Route::get('/users',      [AuthController::class,      'index']);
-
-    // ── Propriétaires ──────────────────────────
-    Route::get('/proprietaires',                [AdminProprietaireController::class, 'index']);
-    Route::get('/proprietaires/{id}',           [AdminProprietaireController::class, 'show']);
-    Route::patch('/proprietaires/{id}/activate',[AdminProprietaireController::class, 'activate']);
-    Route::patch('/proprietaires/{id}/suspend', [AdminProprietaireController::class, 'suspend']);
-
-    // ── Transactions ───────────────────────────
-    Route::get('/transactions',         [AdminTransactionController::class, 'index']);
-    Route::get('/transactions/summary', [AdminTransactionController::class, 'summary']);
-    Route::get('/transactions/{id}',    [AdminTransactionController::class, 'show']);
-
-    // ── Abonnements & Plans ────────────────────
-    Route::get('/subscriptions',                          [AdminSubscriptionController::class, 'index']);
-    Route::get('/plans',                                  [AdminSubscriptionController::class, 'plans']);
-    Route::patch('/subscriptions/{proprietaireId}/change-plan', [AdminSubscriptionController::class, 'changePlan']);
-    Route::patch('/subscriptions/{proprietaireId}/cancel',      [AdminSubscriptionController::class, 'cancel']);
-});
+        // Dashboard
+        Route::get('/dashboard', [ProprietaireDashboardController::class, 'proprietaire']);
+        // Route::get('/stats-proprietes', [ProprietaireDashboardController::class, 'statsProprietes']);
+        // Route::get('/stats/historique-6-mois', [ProprietaireDashboardController::class, 'historique6Mois']);
 
 
-// ============================================
-// 🏠 ROUTES PROPRIETAIRE (BAILLEUR)
-// ============================================
+        // Propriétés
+        Route::get('/proprietes/count', [PropertyController::class, 'countProperty']);
+        Route::get('/proprietes/search', [PropertyController::class, 'search']);
+        Route::get('/proprietes', [PropertyController::class, 'allProperty']);
+        Route::post('/proprietes', [PropertyController::class, 'store']);
+        Route::put('/proprietes/{id}', [PropertyController::class, 'update']);
+        Route::delete('/proprietes/{id}', [PropertyController::class, 'destroy']);
+        Route::get('/proprietes/{id}', [PropertyController::class, 'show']);
 
-Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->group(function () {
+        // Logements
+        Route::post('/proprietes/{proprieteId}/logements', [LogementController::class, 'store']);
+        Route::put('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'updateInfos']);
+        Route::delete('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'destroy']);
+        Route::get('/proprietes/{proprieteId}/logements', [LogementController::class, 'indexByPropriete']);
+        Route::get('/proprietes/{proprieteId}/logements/count', [LogementController::class, 'countByPropriete']);
 
-    // Géolocalisation
-    Route::get('/regions', [GeoController::class, 'regions']);
-    Route::get('/regions/{id}/departements', [GeoController::class, 'departements']);
-    Route::get('/departements/{id}/communes', [GeoController::class, 'communes']);
+        Route::get('/mes-logements', [LogementController::class, 'getAllLogementsByProprietaire']);
 
-    // Dashboard
-    Route::get('/dashboard', [PropertyController::class, 'dashboard']);
-    Route::get('/stats-proprietes', [PropertyController::class, 'statsProprietes']);
+        Route::get('/mes-logements/{id}', [LogementController::class, 'show']);
 
-    // Propriétés (routes spécifiques AVANT les génériques)
-    Route::get('/proprietes/count', [PropertyController::class, 'countProperty']);
-    Route::get('/proprietes/search', [PropertyController::class, 'search']);
-    Route::get('/proprietes', [PropertyController::class, 'allProperty']);
-    Route::post('/proprietes', [PropertyController::class, 'store']);
-    Route::put('/proprietes/{id}', [PropertyController::class, 'update']);
-    Route::delete('/proprietes/{id}', [PropertyController::class, 'destroy']);
+        Route::get('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'showByPropriete']);
 
-    // Logements d'une propriété
-    Route::post('/proprietes/{proprieteId}/logements', [LogementController::class, 'store']);
-    Route::put('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'update']);
-    Route::delete('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'destroy']);
-    Route::get('/proprietes/{proprieteId}/logements', [LogementController::class, 'indexByPropriete']);
-    Route::get('/proprietes/{proprieteId}/logements/count', [LogementController::class, 'countByPropriete']);
 
-    // Publication et photos
-    Route::patch('/proprietes/{proprieteId}/logements/{id}/status', [LogementController::class, 'updateStatusPublication']);
-    Route::post('/proprietes/{proprieteId}/logements/{id}/photos', [LogementController::class, 'addPhotos']);
-    Route::get('/mes-logements/publies', [LogementController::class, 'getPublishedLogementsByProprietaire']);
+        Route::patch(
+            '/proprietes/{proprieteId}/logements/{id}/status',
+            [LogementController::class, 'updateStatusPublication']
+        )
+            ->middleware('check.publication');
 
-    // Gestion des demandes
-    Route::get('/demandes', [DemandeController::class, 'demandesProprietaire']);
-    Route::patch('/demandes/{id}/accepter', [DemandeController::class, 'accepter']);
-    Route::patch('/demandes/{id}/refuser', [DemandeController::class, 'refuser']);
+        Route::patch(
+            '/proprietes/{proprieteId}/logements/{id}/highlight',
+            [LogementController::class, 'toggleHighlight']
+        )
+            ->middleware('feature:Mise en avant des logements');
 
-    // ═══════════════════════════════════════════════════════════
-    // BAUX (Unification bails → baux)
-    // ═══════════════════════════════════════════════════════════
-    Route::post('/baux', [BailController::class, 'store']);
-    Route::get('/baux', [BailController::class, 'bauxBailleur']);
-    Route::get('/baux/{id}', [BailController::class, 'show']);
-    Route::get('/baux/{id}/pdf', [BailController::class, 'exportPdf']);
-    Route::delete('/baux/{id}', [BailController::class, 'destroy']);
+        Route::post('/proprietes/{proprieteId}/logements/{id}/photos', [LogementController::class, 'addPhotos']);
+        Route::get('/mes-logements/publies', [LogementController::class, 'getPublishedLogementsByProprietaire']);
 
-    // ═══════════════════════════════════════════════════════════
-    // PAIEMENTS (Côté Bailleur)
-    // ✅ NOUVELLE ROUTE
-    // ═══════════════════════════════════════════════════════════
-    Route::get('/paiements', [PaiementController::class, 'paiementsProprietaire']);
-});
+        // Dashboard & Stats
+        Route::get('/proprietaire/dashboard', [ProprietaireDashboardController::class, 'proprietaire']);
+
+        // Stats optionnelles
+        Route::get('/proprietaire/stats/historique-6-mois', [ProprietaireDashboardController::class, 'historique6Mois']);
+        Route::get('/proprietaire/stats/par-propriete', [ProprietaireDashboardController::class, 'statsParPropriete']);
+
+        // Rapports Financiers
+        Route::get('/rapports/financiers', [\App\Http\Controllers\API\ProprietaireReportController::class, 'getFinances'])
+            ->middleware('feature:Rapports financiers avancés');
+        Route::get('/rapports/financiers/export', [\App\Http\Controllers\API\ProprietaireReportController::class, 'exportFinances'])
+            ->middleware('feature:Export Excel');
+
+        // Demandes
+        Route::get('/demandes', [DemandeController::class, 'demandesProprietaire']);
+        Route::patch('/demandes/{id}/accepter', [DemandeController::class, 'accepter']);
+        Route::patch('/demandes/{id}/refuser', [DemandeController::class, 'refuser']);
+
+        // Baux
+        Route::post('/baux', [BailController::class, 'store']);
+        Route::get('/baux', [BailController::class, 'bauxBailleur']);
+        Route::get('/baux/{id}', [BailController::class, 'show']);
+        Route::get('/baux/{id}/pdf', [BailController::class, 'exportPdf']);
+        Route::delete('/baux/{id}', [BailController::class, 'destroy']);
+
+        // Paiements loyers
+        Route::get('/paiements', [PaymentController::class, 'paiementsProprietaire']);
+    });
 
 // ============================================
 // 🏡 ROUTES LOCATAIRE
@@ -160,102 +216,52 @@ Route::middleware(['auth:sanctum', 'proprietaire'])->prefix('proprietaire')->gro
 
 Route::middleware(['auth:sanctum', 'locataire'])->prefix('locataire')->group(function () {
 
-    // ═══════════════════════════════════════════════════════════
-    // DEMANDES DE LOCATION
-    // ═══════════════════════════════════════════════════════════
+
+    // Dashboard
+
+    Route::get('/dashboard', [LocataireDashboardController::class, 'index']);
+
+
+    // Demandes
     Route::post('/demandes', [DemandeController::class, 'store']);
     Route::get('/demandes', [DemandeController::class, 'demandesLocataire']);
     Route::delete('/demandes/{id}', [DemandeController::class, 'destroy']);
     Route::patch('/demandes/{id}/annuler', [DemandeController::class, 'annuler']);
 
-    // ═══════════════════════════════════════════════════════════
-    // LOGEMENTS
-    // ═══════════════════════════════════════════════════════════
+    // Logements
     Route::get('/logements', [LogementController::class, 'logementsLocataire']);
 
-    // ═══════════════════════════════════════════════════════════
-    // BAUX
-    // ✅ NOUVELLE ROUTE
-    // ═══════════════════════════════════════════════════════════
-    Route::get('/bail-en-attente', [BailController::class, 'getBailEnAttente']); // ⭐ NOUVEAU
+    // Baux
+    Route::get('/bail-en-attente', [BailController::class, 'getBailEnAttente']);
     Route::get('/baux', [BailController::class, 'bauxLocataire']);
     Route::get('/baux/{id}', [BailController::class, 'show']);
     Route::get('/baux/{id}/pdf', [BailController::class, 'exportPdf']);
 
-    // ═══════════════════════════════════════════════════════════
-    // PAIEMENTS (Consultation)
-    // ✅ NOUVELLES ROUTES
-    // ═══════════════════════════════════════════════════════════
-    Route::get('/paiements', [PaiementController::class, 'index']);
-    Route::get('/paiements/stats', [PaiementController::class, 'statistiques']);
+    // Paiements loyers
 
+    Route::get('/paiements', [PaymentController::class, 'index']);
+    Route::get('/paiements/stats', [PaymentController::class, 'statistiques']);
+    Route::post('/paiements/{id}/initier', [PaymentController::class, 'initierLoyer']);
 
-
-    // ═══════════════════════════════════════════════════════════
-    // TRANSACTIONS (Mobile Money)
-    // ✅ TOUTES NOUVELLES ROUTES
-    // ═══════════════════════════════════════════════════════════
-    Route::get('/transactions', [TransactionController::class, 'index']); // ⭐ NOUVEAU
+    // Transactions loyers
+    Route::get('/transactions', [TransactionController::class, 'indexLocataire']);
 });
 
 // ============================================
-// 💳 ROUTES PAIEMENTS & TRANSACTIONS (Locataire)
-// ✅ TOUTES NOUVELLES
+// 🧪 ROUTE DE TEST
 // ============================================
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'admin'])
+    ->get('/test-firestore/{userId}', function ($userId, NotificationService $notifService) {
+        $user = User::find($userId);
+        if (!$user) return response()->json(['error' => 'User not found'], 404);
 
-    // ═══════════════════════════════════════════════════════════
-    // PAIEMENTS (Routes communes - accessible locataire)
-    // ═══════════════════════════════════════════════════════════
-    
+        $notif = $notifService->sendToUser(
+            $user,
+            "Test Notification Firestore",
+            "Si tu vois ça dans Firebase Console > Firestore, c'est gagné !",
+            "test"
+        );
 
-    
-    // Liste des paiements(payer et non payés) d'un bail spécifique
-    Route::get('/baux/{bailId}/paiements', [PaiementController::class, 'paiementsBail']); // ⭐ NOUVEAU
-    // Paiement à régler (liste des impayés) d'un bail spécifique
-    Route::get('/baux/{bailId}/paiement-a-regler', [PaiementController::class, 'paiementARegler']); // ⭐ NOUVEAU
-    // qui nous redrige vers la route de paiement mobile money (initierPaiement)
-    Route::get('/paiements/{id}', [PaiementController::class, 'show']);
-
-    // ═══════════════════════════════════════════════════════════
-    // TRANSACTIONS - INITIER PAIEMENT (LA PLUS IMPORTANTE)
-    // ✅ TOUTES NOUVELLES ROUTES
-    // ═══════════════════════════════════════════════════════════
-    Route::post('/paiements/{paiementId}/payer', [TransactionController::class, 'initierPaiement']); // ⭐⭐⭐ CRITIQUE
-
-    // Consultation transactions
-    Route::get('/transactions/{id}', [TransactionController::class, 'show']); // ⭐ NOUVEAU
-    Route::get('/transactions/{id}/statut', [TransactionController::class, 'verifierStatut']); // ⭐ NOUVEAU
-
-    // Gestion transactions
-    Route::delete('/transactions/{id}', [TransactionController::class, 'annuler']); // ⭐ NOUVEAU
-    Route::post('/transactions/{id}/relancer', [TransactionController::class, 'relancer']); // ⭐ NOUVEAU
-});
-
-// ✅ Webhook public — PayDunya appelle directement
-//Route::post('/webhook/paydunya', [TransactionController::class, 'webhookPaydunya']);
-
-// ============================================
-// 🧪 ROUTE DE TEST (À SUPPRIMER EN PRODUCTION)
-// ============================================
-
-Route::middleware(['auth:sanctum', 'admin'])->get('/test-firestore/{userId}', function ($userId, NotificationService $notifService) {
-    $user = User::find($userId);
-
-    if (!$user) {
-        return response()->json(['error' => 'User not found'], 404);
-    }
-
-    $notif = $notifService->sendToUser(
-        $user,
-        "Test Notification Firestore",
-        "Si tu vois ça dans Firebase Console > Firestore, c'est gagné !",
-        "test"
-    );
-
-    return response()->json([
-        'message' => 'Envoyé !',
-        'mysql_notif' => $notif
-    ]);
-});
+        return response()->json(['message' => 'Envoyé !', 'mysql_notif' => $notif]);
+    });
