@@ -31,7 +31,6 @@ class BailLocataireResource extends JsonResource
             'date_fin'      => $this->date_fin,
         ];
 
-        // ❌ Bail pas encore payé → infos de base seulement
         if (!$estActif) {
             return array_merge($base, [
                 'message'  => 'Veuillez payer la caution pour activer votre bail.',
@@ -41,7 +40,6 @@ class BailLocataireResource extends JsonResource
             ]);
         }
 
-        // ✅ Bail actif → toutes les infos
         return array_merge($base, [
             'bailleur' => [
                 'prenom'    => $this->logement->propriete->proprietaire->user->prenom ?? null,
@@ -49,10 +47,15 @@ class BailLocataireResource extends JsonResource
                 'telephone' => $this->logement->propriete->proprietaire->user->telephone ?? null,
             ],
             'charges_mensuelles'        => $this->charges_mensuelles,
-            'caution'                   => $this->montant_caution_total,
+            'caution' => [
+                'total'          => $this->montant_caution_total,
+                'paye_signature' => $this->montant_caution_signature,
+                'reste_a_etaler' => $this->montant_caution_etale,
+                'mensualite'     => $this->mensualite_caution,
+                'mois_restants'  => $this->mois_etalement_restants,
+            ],
             'jour_echeance'             => $this->jour_echeance,
             'renouvellement_automatique' => $this->renouvellement_automatique,
-            //'historique_paiements'      => $this->paiements,
         ]);
     }
 }

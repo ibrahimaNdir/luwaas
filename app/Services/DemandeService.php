@@ -11,10 +11,6 @@ class DemandeService
     // CRÉATION
     // ═══════════════════════════════════════════
 
-    /**
-     * Vérifie qu'un locataire peut créer une demande pour ce logement.
-     * Retourne un message d'erreur ou null si OK.
-     */
     public function validerCreation(Logement $logement, int $locataireId): ?array
     {
         if ($logement->statut_occupe !== 'disponible') {
@@ -33,7 +29,7 @@ class DemandeService
         return null;
     }
 
-     public function creer(Logement $logement, int $locataireId): Demande
+    public function creer(Logement $logement, int $locataireId): Demande
     {
         $demande = Demande::create([
             'logement_id'     => $logement->id,
@@ -52,23 +48,33 @@ class DemandeService
     // ACTIONS PROPRIÉTAIRE
     // ═══════════════════════════════════════════
 
-    /**
-     * Vérifie que le propriétaire est bien owner de la demande.
-     */
     public function verifierProprietaire(Demande $demande, int $proprietaireId): bool
     {
         return $demande->proprietaire_id === $proprietaireId;
     }
 
+    /**
+     * Accepte la demande. Ne touche pas au logement ni aux autres demandes —
+     * plusieurs demandes peuvent être acceptées en parallèle tant qu'aucun
+     * bail n'est créé (voir BailService::creerBail pour le refus en cascade).
+     */
     public function accepter(Demande $demande): void
     {
-        $demande->update(['status' => 'acceptee']);
+        $demande->update([
+            'status'           => 'acceptee',
+            'date_acceptation' => now(),
+        ]);
+
         event(new \App\Events\DemandeAcceptee($demande));
     }
 
     public function refuser(Demande $demande): void
     {
-        $demande->update(['status' => 'refusee']);
+        $demande->update([
+            'status'    => 'refusee',
+            'date_refus' => now(),  // ← à ajouter
+        ]);
+
         event(new \App\Events\DemandeRefusee($demande));
     }
 
@@ -76,18 +82,54 @@ class DemandeService
     // ACTIONS LOCATAIRE
     // ═══════════════════════════════════════════
 
-    /**
-     * Vérifie que le locataire est bien owner de la demande.
-     */
     public function verifierLocataire(Demande $demande, int $locataireId): bool
     {
         return $demande->locataire_id === $locataireId;
     }
 
+    /**
+     * Annule la demande. Ne touche pas au logement — il ne passe jamais
+     * automatiquement à "reserve", donc rien à remettre à "disponible".
+     */
     public function annuler(Demande $demande): void
     {
         $ancienStatus = $demande->status;
+
         $demande->update(['status' => 'annulee']);
+
         event(new \App\Events\DemandeAnnulee($demande, $ancienStatus));
+    }
+
+
+    public function marquerNonAboutie(Demande $demande): void
+    {
+        if ($demande->status !== 'acceptee') {
+            return;
+        }
+
+        $demande->update([
+            'status'           => 'non_aboutie',
+            'date_non_aboutie' => now(),
+        ]);
+
+        event(new \App\Events\DemandeNonAboutie($demande));
+    }
+
+    public function refuserAutomatiquementApresBail(int $logementId, int $bailCreeDemandeId): void
+    {
+        $demandes = Demande::where('logement_id', $logementId)
+            ->where('id', '!=', $bailCreeDemandeId)
+            ->whereIn('status', ['en_attente', 'acceptee'])
+            ->get();
+
+        foreach ($demandes as $demande) {
+            $demande->update([
+                'status'      => 'refusee',
+                'date_refus'   => now(),
+                'motif_refus'  => 'other_lease_created',
+            ]);
+
+            event(new \App\Events\DemandeRefusee($demande));
+        }
     }
 }

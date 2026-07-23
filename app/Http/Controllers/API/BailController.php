@@ -38,7 +38,8 @@ class BailController extends Controller
 
         $bail = $this->bailService->creerBail($demande, $request->validated());
 
-        $montantTotalSignature = $bail->montant_caution_total + $bail->montant_loyer;
+        
+        $montantTotalSignature = $bail->montant_caution_signature + $bail->montant_loyer;
         $periode = Carbon::parse($bail->date_debut)->isoFormat('MMMM YYYY');
 
         return response()->json([
@@ -97,7 +98,7 @@ class BailController extends Controller
                     'loyer_mensuel' => $bail->montant_loyer,
                     'charges'       => $bail->charges_mensuelles,
                     'caution'       => $bail->montant_caution_total,
-                    'total_a_payer' => $bail->montant_caution_total + $bail->montant_loyer,
+                    'total_a_payer' => $bail->montant_caution_signature + $bail->montant_loyer,
                 ],
                 'dates' => [
                     'debut'      => $bail->date_debut,

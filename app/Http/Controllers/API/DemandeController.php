@@ -73,7 +73,7 @@ class DemandeController extends Controller
             return response()->json(['message' => 'Action non autorisée.'], 403);
         }
 
-        if (!in_array($demande->status, ['refusee', 'annulee'])) {
+        if (!in_array($demande->status, ['refusee', 'annulee', 'non_aboutie'])) {
             return response()->json([
                 'message' => 'Impossible de supprimer une demande active. Annulez-la d\'abord.'
             ], 422);
@@ -117,7 +117,7 @@ class DemandeController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Demande acceptée. Le locataire a été notifié.',
+            'message' => 'Demande acceptée. Les coordonnées sont maintenant partagées.',
             'demande' => $demande,
         ]);
     }
