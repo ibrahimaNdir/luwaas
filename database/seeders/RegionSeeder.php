@@ -17,7 +17,6 @@ class RegionSeeder extends Seeder
     {
         $regions = [
             'Dakar',
-            'Thiès',
         ];
         foreach ($regions as $region) {
             DB::table('regions')->insert([

@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('propriete_id')->constrained('proprietes')->onDelete('cascade');
 
             // "numero" : Sert d'identifiant unique dans la propriété (Ex: "A2", "Villa", "Chambre 1")
-            $table->string('numero')->nullable(); 
+            $table->string('numero')->nullable();
 
             $table->enum('typelogement', ['studio', 'appartement', 'maison', 'villa']);
 
@@ -29,20 +29,14 @@ return new class extends Migration
 
 
             $table->boolean('meuble')->default(false);
-            $table->enum('etat', ['neuf', 'excellent', 'moyen', 'renovation_requise'])->default('bon');
+            $table->string('etat')->default('bon');
             $table->text('description')->nullable(); // Pour balcon, chauffe-eau, etc.
 
             // --- PARTIE FINANCIÈRE (SÉNÉGAL COMPLIANT) ---
             $table->integer('prix_loyer'); // Ex: 150000
 
             // --- STATUTS ---
-            $table->enum('statut_occupe', [
-                'disponible',    
-                'loue',          
-                'en_visite',     
-                'en_travaux',    
-                'indisponible',
-            ])->default('disponible');
+           $table->string('statut_occupe')->default('disponible');
 
             $table->enum('statut_publication', ['brouillon', 'publie'])->default('brouillon');
 

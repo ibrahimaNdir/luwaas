@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('demande_id')->nullable()->constrained('demandes')->onDelete('set null');
             $table->foreignId('logement_id')->constrained('logements')->onDelete('cascade');
             $table->foreignId('locataire_id')->constrained('locataires')->onDelete('cascade');
+            $table->foreignId('proprietaire_id')->constrained('proprietaires')->onDelete('cascade');
 
             // ═══════════════════════════════════════════════════════════
             // FINANCES
@@ -25,6 +26,15 @@ return new class extends Migration
             $table->integer('charges_mensuelles')->default(0);
             $table->integer('nombre_mois_caution');
             $table->integer('montant_caution_total');
+
+            // ← NOUVEAU : répartition de la caution (conformité légale)
+
+            $table->decimal('montant_caution_signature', 12, 2);
+            $table->decimal('montant_caution_etale', 12, 2)->default(0);
+            $table->decimal('mensualite_caution', 12, 2)->default(0);
+            $table->unsignedTinyInteger('mois_etalement_restants')->default(0);
+
+
 
             // ═══════════════════════════════════════════════════════════
             // DATES & ÉCHÉANCES
@@ -45,7 +55,6 @@ return new class extends Migration
                 'suspendu',
             ])->default('en_attente_paiement');
 
-            // ✅ MAINTENANT on peut utiliser after('statut')
             $table->timestamp('date_activation')->nullable();
 
             // ═══════════════════════════════════════════════════════════

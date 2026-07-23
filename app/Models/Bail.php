@@ -1,11 +1,15 @@
 <?php
 
 namespace App\Models;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 use Illuminate\Database\Eloquent\Model;
 
 class Bail extends Model
+
 {
+    use HasFactory;
+    
     protected $table = 'baux';
 
     protected $fillable = [
@@ -13,12 +17,17 @@ class Bail extends Model
         'demande_id',
         'logement_id',
         'locataire_id',
+        'proprietaire_id',
 
         // Finances
         'montant_loyer',
         'charges_mensuelles',
         'nombre_mois_caution',
         'montant_caution_total',
+        'montant_caution_signature',   // ← à ajouter
+        'montant_caution_etale',       // ← à ajouter
+        'mensualite_caution',          // ← à ajouter
+        'mois_etalement_restants',     // ← à ajouter
 
         // Dates & Échéances
         'date_debut',
@@ -43,6 +52,10 @@ class Bail extends Model
         'date_debut'                 => 'date',
         'date_fin'                   => 'date',
         'date_activation'            => 'datetime',
+        'montant_caution_signature'  => 'decimal:2',
+        'montant_caution_etale'      => 'decimal:2',
+        'mensualite_caution'         => 'decimal:2',
+        
     ];
 
     // ═══════════════════════════════════════════
@@ -69,6 +82,10 @@ class Bail extends Model
         return $this->hasMany(Paiement::class);
     }
 
+    public function proprietaire()
+    {
+        return $this->belongsTo(Proprietaire::class);
+    }
     // ═══════════════════════════════════════════
     // ACCESSEURS
     // ═══════════════════════════════════════════

@@ -11,54 +11,69 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
 
-             $table->string('reference_externe')
-              ->nullable()
-              ->unique();
-             
+            // ═══════════════════════════════════════════════════════════
+            // TYPE
+            // ═══════════════════════════════════════════════════════════
+            $table->enum('type', [
+                'rent_payment',         // Paiement loyer / caution
+                'subscription_payment', // Paiement abonnement SaaS
+            ]);
 
             // ═══════════════════════════════════════════════════════════
-            // RELATION
+            // RELATIONS (nullable selon le type)
+            // rent_payment         → paiement_id renseigné, subscription_id null
+            // subscription_payment → subscription_id renseigné, paiement_id null
             // ═══════════════════════════════════════════════════════════
             $table->foreignId('paiement_id')
+                ->nullable()
                 ->constrained('paiements')
                 ->onDelete('cascade');
 
+            $table->foreignId('subscription_id')
+                ->nullable()
+                ->constrained('subscriptions')
+                ->onDelete('cascade');
+
             // ═══════════════════════════════════════════════════════════
-            // INFORMATIONS TRANSACTION
+            // RÉFÉRENCES
             // ═══════════════════════════════════════════════════════════
-            $table->string('mode_paiement'); // wave, orange_money, free_money, paypal, espece
+            $table->string('reference')->nullable()->unique();          // LOYER-1-5-ABC123
+            $table->string('paydunyatoken')->nullable()->unique();  // token PayDunya
+            $table->string('lien_paiement')->nullable();                // deeplink/URL PayDunya
+
+            // ═══════════════════════════════════════════════════════════
+            // INFORMATIONS PAIEMENT
+            // ═══════════════════════════════════════════════════════════
+            $table->string('mode_paiement'); // wave, orange_money, free_money
             $table->decimal('montant', 10, 2);
-            
+
             // ═══════════════════════════════════════════════════════════
-            // STATUT TRANSACTION
+            // STATUT
             // ═══════════════════════════════════════════════════════════
             $table->enum('statut', [
-                'en_attente',  // Initié, pas encore confirmé
-                'valide',      // Confirmé par webhook
-                'rejete',      // Échoué
-                'rembourse',   // Remboursé
+                'en_attente', // Initié, en attente de confirmation PayDunya
+                'valide',     // Confirmé par webhook
+                'rejete',     // Échoué ou annulé
+                'rembourse',  // Remboursé
             ])->default('en_attente');
 
             // ═══════════════════════════════════════════════════════════
-            // DÉTAILS MOBILE MONEY
+            // DÉTAILS
             // ═══════════════════════════════════════════════════════════
-            $table->string('reference')->nullable()->unique(); // WV-123, OM-456, etc.
-            $table->string('telephone_payeur')->nullable(); // +221771234567
+            $table->string('telephone_payeur')->nullable();
             $table->string('ip_address')->nullable();
+            $table->json('metadata')->nullable();
             $table->timestamp('date_transaction')->nullable();
-
-            // ═══════════════════════════════════════════════════════════
-            // MÉTADONNÉES (pour webhook)
-            // ═══════════════════════════════════════════════════════════
-            $table->json('metadata')->nullable(); // JSON pour infos supplémentaires
+            $table->timestamp('expire_at')->nullable(); // créée + 30 min, pour éviter les tokens fantômes
 
             // ═══════════════════════════════════════════════════════════
             // TIMESTAMPS & INDEX
-            // ════════════════════════════
+            // ═══════════════════════════════════════════════════════════
             $table->timestamps();
 
+            $table->index('type');
             $table->index('paiement_id');
-            $table->index('reference');
+            $table->index('subscription_id');
             $table->index('statut');
             $table->index('mode_paiement');
         });

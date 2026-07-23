@@ -12,35 +12,32 @@ return new class extends Migration
             $table->id();
 
             $table->foreignId('user_id')
-                  ->constrained('users')
-                  ->onDelete('cascade');
+                ->constrained('users')
+                ->cascadeOnDelete();
 
             $table->string('proprietaire_id')->unique();
-            $table->string('cni')->unique();
             $table->boolean('is_actif')->default(true);
 
-            // Subscription
+            // Etat courant d'abonnement
+            $table->string('subscription_status')->default('free_trial');
+            // free_trial | pending_payment | active | expired | cancelled
+
+            $table->string('plan')->default('free');
+            // free | pro
+
+            $table->string('billing_cycle')->nullable();
+            // null | monthly | yearly
+
+            $table->unsignedTinyInteger('publications_actives')->default(0);
+
+            // Gratuit temporaire de 15 jours
             $table->timestamp('trial_ends_at')->nullable();
-            $table->enum('subscription_status', [
-                'trial',
-                'active',
-                'expired',
-                'cancelled'
-            ])->default('trial');
 
-            $table->enum('plan', [
-                'starter',
-                'pro',
-                'enterprise'
-            ])->nullable();                                // null = pas encore de plan payant
-
-            $table->enum('billing_cycle', [
-                'monthly',
-                'yearly'
-            ])->nullable();                                // ✅ ajout
-
+            // Fin du plan payant pro
             $table->timestamp('subscription_ends_at')->nullable();
-            $table->timestamp('cancelled_at')->nullable(); // ✅ ajout
+
+            // Annulation programmée ou historique
+            $table->timestamp('cancelled_at')->nullable();
 
             $table->timestamps();
         });

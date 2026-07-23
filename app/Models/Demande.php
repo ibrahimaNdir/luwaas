@@ -1,27 +1,40 @@
 <?php
 
 namespace App\Models;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+
 use Illuminate\Database\Eloquent\Model;
 
 class Demande extends Model
 {
-
-   const STATUS_EN_ATTENTE = 'en_attente';
-    const STATUS_ACCEPTEE = 'acceptee';
-    const STATUS_REFUSEE = 'refusee';
-    const STATUS_ANNULEE = 'annulee';
-    const STATUS_CONVERTIE = 'convertie';
+    protected $table = 'demandes';
 
     protected $fillable = [
         'logement_id',
         'locataire_id',
         'proprietaire_id',
         'date_demande',
-        'status', // N'oublie pas d'ajouter ça
+        'status',
+        'date_acceptation',
+        'rappel_envoye',
+        'date_refus',
+        'date_non_aboutie',
+        'date_bail_cree',
+        'motif_refus',
     ];
 
+    protected $casts = [
+        'date_demande'      => 'datetime',
+        'date_acceptation'  => 'datetime',
+        'date_refus'        => 'datetime',
+        'date_non_aboutie'  => 'datetime',
+        'date_bail_cree'    => 'datetime',
+        'rappel_envoye'     => 'boolean',
+    ];
+
+    // ═══════════════════════════════════════════
+    // RELATIONS
+    // ═══════════════════════════════════════════
 
     public function logement()
     {
@@ -38,4 +51,8 @@ class Demande extends Model
         return $this->belongsTo(Proprietaire::class);
     }
 
+    public function bail()
+    {
+        return $this->hasOne(Bail::class, 'demande_id');
+    }
 }

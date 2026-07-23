@@ -12,28 +12,22 @@ return new class extends Migration
             $table->id();
 
             $table->string('slug')->unique();
-            // ex: 'starter-monthly', 'pro-yearly'
+            // ex: 'free', 'pro-monthly', 'pro-yearly'
 
             $table->string('name');
-            // ex: 'Starter', 'Pro', 'Enterprise'
+            // ex: 'Gratuit', 'Pro'
 
-            $table->enum('tier', ['starter', 'pro', 'enterprise']);
-            // pour regrouper les plans du même niveau
+            $table->string('tier');
+            // Valeurs : free | pro
 
-            $table->enum('billing_cycle', ['monthly', 'yearly'])
-                  ->default('monthly');           // ✅ ajout
+            $table->string('billing_cycle')->nullable();
+            // Valeurs : null (free) | monthly | yearly
 
             $table->decimal('price_xof', 10, 2)->default(0);
-            // Prix en FCFA selon le billing_cycle
+            // Prix en FCFA — 0 pour le plan free
 
-            $table->integer('biens_max')->nullable();
-            // null = illimité
-
-            $table->integer('locataires_max')->nullable();
-            // ✅ renommé, null = illimité
-
-            $table->integer('cogestionnaires_max')->nullable();
-            // ✅ ajout, 1 = seulement le propriétaire lui-même
+            $table->unsignedInteger('publications_max')->nullable();
+            // 1 pour free | 10 pour pro | null = illimité
 
             $table->json('features')->nullable();
             // ex: ["Quittances PDF", "Rappels SMS", "Export Excel"]

@@ -1,15 +1,26 @@
 <?php
 
 namespace App\Models;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 use Illuminate\Database\Eloquent\Model;
 
 class Locataire extends Model
 {
+    use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::creating(function (self $locataire): void {
+            if (blank($locataire->locataire_id) && $locataire->user_id) {
+                $locataire->locataire_id = 'LOC-' . str_pad((string) $locataire->user_id, 5, '0', STR_PAD_LEFT);
+            }
+        });
+    }
+    
     protected $fillable = [
         'user_id',
         'locataire_id',
-        'cni',
         'is_actif',
 
 

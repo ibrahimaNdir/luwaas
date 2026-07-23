@@ -27,9 +27,11 @@ return new class extends Migration
 
             $table->timestamp('date_demande')->useCurrent();
 
-             // LE CHAMP MAGIQUE 👇
-        $table->string('status')->default('en_attente'); 
-       
+            // LE CHAMP MAGIQUE 👇
+            $table->string('status')->default('en_attente');
+            $table->timestamp('date_acceptation')->nullable();
+            $table->boolean('rappel_envoye')->default(false);
+
 
 
             $table->timestamps();
@@ -42,5 +44,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('demandes');
+        
+        Schema::table('demandes', function (Blueprint $table) {
+            $table->dropColumn(['date_acceptation', 'rappel_envoye']);
+        });
     }
 };

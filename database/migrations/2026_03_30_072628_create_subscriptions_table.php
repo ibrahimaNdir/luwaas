@@ -20,7 +20,7 @@ return new class extends Migration
                   ->onDelete('restrict');
 
             $table->enum('status', [
-                'pending',    // ✅ paiement initié
+                'pending',    
                 'active',
                 'cancelled',
                 'expired'
@@ -41,8 +41,10 @@ return new class extends Migration
             $table->string('transaction_ref')->nullable();
             $table->decimal('amount', 10, 2);
 
-            $table->timestamp('starts_at');
-            $table->timestamp('ends_at');
+           
+
+            $table->timestamp('starts_at')->nullable();
+            $table->timestamp('ends_at')->nullable();
             $table->timestamp('cancelled_at')->nullable(); // ✅ traçabilité
 
             $table->timestamps();

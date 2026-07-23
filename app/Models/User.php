@@ -6,10 +6,12 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, Notifiable;
+   
+     use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'prenom',
@@ -20,16 +22,20 @@ class User extends Authenticatable
         'is_active',
         'user_type',
         'profile',
+
         // 🆕 Champs OTP
         'phone_verified_at',
         'phone_otp',
         'phone_otp_expires_at',
+        'otp_attempts'
+
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
         'phone_otp', // 🔒 jamais exposé dans les réponses JSON
+        'otp_attempts', // 🔒 jamais exposé dans les réponses JSON
     ];
 
     protected $casts = [
@@ -37,6 +43,7 @@ class User extends Authenticatable
         'profile'             => 'array',
         'phone_verified_at'   => 'datetime',
         'phone_otp_expires_at' => 'datetime',
+        'otp_attempts'        => 'integer',
     ];
 
     // 🆕 Helpers OTP
@@ -56,8 +63,8 @@ class User extends Authenticatable
 
     public function isOtpExpired(): bool
     {
-        return $this->phone_otp_expires_at &&
-            now()->isAfter($this->phone_otp_expires_at);
+        return $this->phone_otp_expires_at === null
+            || now()->isAfter($this->phone_otp_expires_at);
     }
 
     // Relations (inchangées)
@@ -80,7 +87,4 @@ class User extends Authenticatable
     {
         return $this->hasMany(Notification::class);
     }
-
-    
-   
 }

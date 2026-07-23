@@ -4,38 +4,65 @@ namespace Database\Seeders;
 
 use App\Models\Admin;
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Carbon\Carbon;
 
 class AdminSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
+        $email = env('ADMIN_SEED_EMAIL');
+        $password = env('ADMIN_SEED_PASSWORD');
+        $telephone = env('ADMIN_SEED_PHONE');
 
-        $user = User::firstOrCreate(
-            ['email' => 'admins@example.com'],
-            [
+        if (!$email || !$password || !$telephone) {
+            $this->command->error('ADMIN_SEED_EMAIL, ADMIN_SEED_PASSWORD et ADMIN_SEED_PHONE doivent être définis dans .env');
+            return;
+        }
+
+        $user = User::where('email', $email)
+            ->orWhere('telephone', $telephone)
+            ->first();
+
+        if ($user) {
+            $user->update([
                 'prenom' => 'Super',
-                'nom' => 'Admins',
-                'telephone' => '771234569',
-                'password' => Hash::make('passwords123'),
+                'nom' => 'Admin',
+                'email' => $email,
+                'telephone' => $telephone,
+                'password' => Hash::make($password),
                 'user_type' => 'admin',
                 'is_active' => true,
-            ]
-        );
+                'phone_verified_at' => Carbon::now(),
+                'phone_otp' => null,
+                'phone_otp_expires_at' => null,
+                'otp_attempts' => 0,
+            ]);
+        } else {
+            $user = User::create([
+                'prenom' => 'Super',
+                'nom' => 'Admin',
+                'email' => $email,
+                'telephone' => $telephone,
+                'password' => Hash::make($password),
+                'user_type' => 'admin',
+                'is_active' => true,
+                'phone_verified_at' => Carbon::now(),
+                'phone_otp' => null,
+                'phone_otp_expires_at' => null,
+                'otp_attempts' => 0,
+            ]);
+        }
 
-        Admin::firstOrCreate(
+        Admin::updateOrCreate(
             ['user_id' => $user->id],
             [
                 'admin_id' => 'ADM002',
-                'username' => 'superadmins',
+                'username' => 'superadmin',
             ]
         );
 
-        //
+        $this->command->warn("Admin prêt avec l'email {$email}");
     }
 }

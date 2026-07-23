@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,9 +14,7 @@ class Plan extends Model
         'tier',
         'billing_cycle',
         'price_xof',
-        'biens_max',
-        'locataires_max',
-        'cogestionnaires_max',
+        'publications_max',
         'features',
         'is_active',
     ];
@@ -24,9 +23,7 @@ class Plan extends Model
         'features'            => 'array',
         'is_active'           => 'boolean',
         'price_xof'           => 'decimal:2',
-        'biens_max'           => 'integer',
-        'locataires_max'      => 'integer',
-        'cogestionnaires_max' => 'integer',
+        'publications_max'    => 'integer',
     ];
 
     // ─── Relations ───────────────────────────────────────────
@@ -60,13 +57,10 @@ class Plan extends Model
         return $this->price_xof == 0;
     }
 
-    public function hasUnlimitedBiens(): bool
-    {
-        return is_null($this->biens_max);
-    }
 
-    public function hasUnlimitedLocataires(): bool
+
+     public function hasUnlimitedPublications(): bool
     {
-        return is_null($this->locataires_max);
+        return is_null($this->publications_max);
     }
 }

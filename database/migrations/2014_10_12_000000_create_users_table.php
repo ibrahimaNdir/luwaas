@@ -20,11 +20,16 @@ return new class extends Migration
             $table->json('profile')->nullable();
             $table->rememberToken();
             $table->timestamp('phone_verified_at')->nullable();
-            $table->string('phone_otp', 6)->nullable();
+
+            // ✅ 1. Taille 6 → 255 (le hash bcrypt fait ~60 chars)
+            $table->string('phone_otp', 255)->nullable();
+
             $table->timestamp('phone_otp_expires_at')->nullable();
+
+            // ✅ 2. Ajouter otp_attempts
+            $table->unsignedTinyInteger('otp_attempts')->default(0);
+
             $table->timestamps();
-
-
             $table->index('user_type');
         });
     }

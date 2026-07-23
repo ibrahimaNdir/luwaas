@@ -42,8 +42,7 @@ return new class extends Migration
 
 
             // Coordonnées géographiques pour géolocalisation précise
-            $table->decimal('latitude', 10, 7)->nullable();
-            $table->decimal('longitude', 10, 7)->nullable();
+
 
             $table->timestamps();
         });

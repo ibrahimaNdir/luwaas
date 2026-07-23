@@ -1,25 +1,34 @@
 <?php
 
 namespace App\Models;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-use App\Traits\Subscribable;          // ✅ ajout
+use App\Traits\Subscribable;         
 use Illuminate\Database\Eloquent\Model;
 
 class Proprietaire extends Model
 {
-    use Subscribable;                  // ✅ ajout
+    use Subscribable   , HasFactory;
+    
+    /**
+     * @property string|null $subscription_status
+     * @property string|null $plan
+     * @property string|null $billing_cycle
+     * @property Carbon|null $subscription_ends_at
+     * @property Carbon|null $trial_ends_at
+     * @property Carbon|null $cancelled_at
+     */
 
     protected $fillable = [
         'user_id',
         'proprietaire_id',
         'is_actif',
-        'cni',
-        'trial_ends_at',              // ✅ ajout
-        'subscription_status',        // ✅ ajout
-        'subscription_ends_at',       // ✅ ajout
-        'plan',                       // ✅ ajout
-        'billing_cycle',              // ✅ ajout
-        'cancelled_at',               // ✅ ajout
+        'trial_ends_at',
+        'subscription_status',        // 
+        'subscription_ends_at',       // 
+        'plan',                       // 
+        'billing_cycle',              //
+        'cancelled_at',               // 
     ];
 
     protected $casts = [
@@ -50,7 +59,32 @@ class Proprietaire extends Model
     public function activeSubscription()
     {
         return $this->hasOne(Subscription::class)
-                    ->where('status', 'active')
-                    ->latest();                     // ✅ ajout
+            ->where('status', 'active')
+            ->latest();                     // ✅ ajout
+    }
+
+
+
+    public function logements()
+    {
+        return $this->hasManyThrough(
+            Logement::class,   // Model final
+            Propriete::class,  // Model intermédiaire
+            'proprietaire_id', // FK sur proprietes
+            'propriete_id',    // FK sur logements
+        );
+    }
+
+
+    public function locataires()
+    {
+        return $this->hasManyThrough(
+            Locataire::class,
+            Bail::class,
+            'proprietaire_id',
+            'id',
+            'id',
+            'locataire_id'
+        );
     }
 }
