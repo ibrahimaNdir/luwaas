@@ -17,6 +17,7 @@ class ExpireSubscriptions extends Command
     {
         $this->expireTrials();
         $this->expirePaidSubscriptions();
+        $this->expirePendingSubscriptions();
         $this->notifyTrialEndingSoon();
 
         $this->info('✅ Traitement des abonnements terminé.');
@@ -83,7 +84,8 @@ class ExpireSubscriptions extends Command
     {
         // Propriétaires dont le trial expire dans exactement 5 jours
         $ending = Proprietaire::where('subscription_status', 'trial')
-            ->whereDate('trial_ends_at', now()->addDays(5)->toDateString())
+            ->where('trial_ends_at', '<=', now()->addDays(5))
+            ->where('trial_ends_at', '>', now())
             ->get();
 
         foreach ($ending as $proprietaire) {
@@ -97,5 +99,18 @@ class ExpireSubscriptions extends Command
         }
 
         $this->info("Notifications trial bientôt expiré envoyées : {$ending->count()}");
+    }
+
+    private function expirePendingSubscriptions(): void
+    {
+        $expired = Subscription::where('status', 'pending')
+            ->where('created_at', '<', now()->subMinutes(30))
+            ->get();
+
+        foreach ($expired as $subscription) {
+            $subscription->update(['status' => 'expired']);
+        }
+
+        $this->info("Paiements abandonnés expirés : {$expired->count()}");
     }
 }

@@ -6,38 +6,44 @@ use App\Models\Plan;
 use App\Models\Proprietaire;
 use App\Models\Subscription;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class SubscriptionService
 {
     // ─────────────────────────────────────────
-    // 1. INITIER UN PAIEMENT D'ABONNEMENT
+    // 1. INITIER UN PAIEMENT
     // ─────────────────────────────────────────
 
-    public function initiatePayment(Proprietaire $proprietaire, int $planId): array
-    {
+    public function initiatePayment(
+        Proprietaire $proprietaire,
+        int $planId,
+        string $operateur,
+        ?string $telephone,
+        string $ip
+    ): array {
         $plan = Plan::findOrFail($planId);
 
-        // Créer la subscription en "pending"
         $subscription = Subscription::create([
-            'proprietaire_id'  => $proprietaire->id,
-            'plan_id'          => $plan->id,
-            'status'           => 'pending',
-            'amount'           => $plan->price_xof,
-            'payment_gateway'  => 'paydunya',
-            'starts_at'        => now(),
-            'ends_at'          => $plan->billing_cycle === 'monthly'
-                                    ? now()->addMonth()
-                                    : now()->addYear(),
+            'proprietaire_id' => $proprietaire->id,
+            'plan_id'         => $plan->id,
+            'status'          => 'pending',
+            'amount'          => $plan->price_xof,
+            'payment_gateway' => 'paydunya',
+            'payment_method'  => $operateur,
+            'starts_at'       => null,
+            'ends_at'         => null,
         ]);
 
-        // Initier la facture PayDunya
-        $paydunyaData = $this->createPaydunyaInvoice($proprietaire, $subscription, $plan);
-
-        // Stocker le token PayDunya pour retrouver la subscription dans le webhook
-        $subscription->update([
-            'paydunya_token' => $paydunyaData['token'],
+        Log::info("💳 Subscription créée", [
+            'id'        => $subscription->id,
+            'plan'      => $plan->name,
+            'operateur' => $operateur,
         ]);
+
+        $paydunyaData = $this->initierPaydunya($subscription, $plan, $telephone, $ip);
+
+        $subscription->update(['paydunya_token' => $paydunyaData['token']]);
 
         return [
             'subscription_id' => $subscription->id,
@@ -47,53 +53,17 @@ class SubscriptionService
     }
 
     // ─────────────────────────────────────────
-    // 2. ACTIVER L'ABONNEMENT (après IPN PayDunya)
-    // ─────────────────────────────────────────
-
-    public function activateSubscription(string $paydunyaToken, string $transactionRef): bool
-    {
-        $subscription = Subscription::where('paydunya_token', $paydunyaToken)
-                                    ->where('status', 'pending')
-                                    ->first();
-
-        if (! $subscription) {
-            Log::warning('SubscriptionService: subscription non trouvée pour token ' . $paydunyaToken);
-            return false;
-        }
-
-        DB::transaction(function () use ($subscription, $transactionRef) {
-            // 1. Activer la subscription
-            $subscription->update([
-                'status'          => 'active',
-                'transaction_ref' => $transactionRef,
-            ]);
-
-            // 2. Mettre à jour le propriétaire
-            $subscription->proprietaire->update([
-                'subscription_status'  => 'active',
-                'subscription_ends_at' => $subscription->ends_at,
-                'plan'                 => $subscription->plan->tier,
-                'billing_cycle'        => $subscription->plan->billing_cycle,
-            ]);
-        });
-
-        return true;
-    }
-
-    // ─────────────────────────────────────────
-    // 3. ANNULER UN ABONNEMENT
+    // 2. ANNULER UN ABONNEMENT
     // ─────────────────────────────────────────
 
     public function cancelSubscription(Proprietaire $proprietaire): bool
     {
         $subscription = Subscription::where('proprietaire_id', $proprietaire->id)
-                                    ->where('status', 'active')
-                                    ->latest()
-                                    ->first();
+            ->where('status', 'active')
+            ->latest()
+            ->first();
 
-        if (! $subscription) {
-            return false;
-        }
+        if (!$subscription) return false;
 
         DB::transaction(function () use ($subscription, $proprietaire) {
             $subscription->update([
@@ -111,73 +81,58 @@ class SubscriptionService
     }
 
     // ─────────────────────────────────────────
-    // 4. EXPIRER LES ABONNEMENTS (via commande)
+    // 3. APPEL PAYDUNYA (privé)
     // ─────────────────────────────────────────
 
-    public function expireOverdueSubscriptions(): int
-    {
-        // Expirer les trials terminés
-        $expiredTrials = Proprietaire::where('subscription_status', 'trial')
-            ->where('trial_ends_at', '<', now())
-            ->update(['subscription_status' => 'expired']);
-
-        // Expirer les abonnements payants terminés
-        $expiredSubs = Proprietaire::where('subscription_status', 'active')
-            ->where('subscription_ends_at', '<', now())
-            ->update(['subscription_status' => 'expired']);
-
-        // Marquer aussi les subscriptions comme expirées
-        Subscription::where('status', 'active')
-            ->where('ends_at', '<', now())
-            ->update(['status' => 'expired']);
-
-        return $expiredTrials + $expiredSubs;
-    }
-
-    // ─────────────────────────────────────────
-    // 5. CRÉER LA FACTURE PAYDUNYA
-    // ─────────────────────────────────────────
-
-    private function createPaydunyaInvoice(
-        Proprietaire $proprietaire,
+    private function initierPaydunya(
         Subscription $subscription,
-        Plan $plan
+        Plan $plan,
+        ?string $telephone,
+        string $ip
     ): array {
-        // Configuration PayDunya
-        \PayDunya\Setup::setMasterKey(config('paydunya.master_key'));
-        \PayDunya\Setup::setPublicKey(config('paydunya.public_key'));
-        \PayDunya\Setup::setPrivateKey(config('paydunya.private_key'));
-        \PayDunya\Setup::setToken(config('paydunya.token'));
+        $mode    = config('services.paydunya.mode', 'test');
+        $baseUrl = $mode === 'live'
+            ? 'https://app.paydunya.com/api/v1'
+            : 'https://app.paydunya.com/sandbox-api/v1';
 
-        if (config('app.env') !== 'production') {
-            \PayDunya\Setup::setMode('test'); // mode sandbox
+        $response = Http::withHeaders([
+            'PAYDUNYA-MASTER-KEY'  => config('services.paydunya.master_key'),
+            'PAYDUNYA-PRIVATE-KEY' => config('services.paydunya.private_key'),
+            'PAYDUNYA-TOKEN'       => config('services.paydunya.token'),
+            'Content-Type'         => 'application/json',
+        ])->post("{$baseUrl}/checkout-invoice/create", [
+            'invoice' => [
+                'total_amount' => (int) $subscription->amount,
+                'description'  => "Luwaas – Abonnement {$plan->name} ({$plan->billing_cycle})",
+            ],
+            'store' => [
+                'name'    => 'Luwaas',
+                'tagline' => 'Gestion locative SaaS',
+            ],
+            'actions' => [
+                'cancel_url'   => config('app.url') . '/abonnement/annule',
+                'return_url'   => config('app.url') . '/abonnement/succes',
+                'callback_url' => config('app.url') . '/api/webhook/subscription/paydunya',
+            ],
+            'custom_data' => [
+                'subscription_id' => $subscription->id,
+                'proprietaire_id' => $subscription->proprietaire_id,
+                'reference'       => 'SUB-' . $subscription->id . '-' . strtoupper(substr(uniqid(), -6)),
+            ],
+        ]);
+
+        if (!$response->successful() || ($response['response_code'] ?? null) !== '00') {
+            Log::error("❌ Erreur PayDunya (abonnement)", $response->json());
+            throw new \Exception("Erreur PayDunya : " . ($response['response_text'] ?? 'Inconnue'));
         }
 
-        // Facture
-        $invoice = new \PayDunya\Checkout\Invoice();
-        $invoice->addItem(
-            $plan->name . ' (' . $plan->billing_cycle . ')',
-            1,
-            $subscription->amount,
-            $subscription->amount
-        );
-        $invoice->setTotalAmount($subscription->amount);
-        $invoice->setDescription('Luwaas – Abonnement ' . $plan->name);
+        $token = $response->json('token');
 
-        // Store
-        $store = new \PayDunya\Checkout\Store();
-        $store->setName('Luwaas');
-        $store->setCallbackURL(route('webhook.paydunya'));         // IPN
-        $store->setReturnURL(route('subscription.success'));       // succès
-        $store->setCancelURL(route('subscription.cancel'));        // annulation
-
-        // Lancer la requête
-        $checkoutInvoice = new \PayDunya\Checkout\CheckoutInvoice();
-        $checkoutInvoice->create($invoice, $store);
+        Log::info("✅ PayDunya OK (abonnement)", ['token' => $token]);
 
         return [
-            'token'       => $checkoutInvoice->getToken(),
-            'payment_url' => $checkoutInvoice->getUrl(),
+            'token'       => $token,
+            'payment_url' => $response->json('response_text'),
         ];
     }
 }

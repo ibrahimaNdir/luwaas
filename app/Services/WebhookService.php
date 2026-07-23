@@ -2,254 +2,337 @@
 
 namespace App\Services;
 
-use App\Models\Bail;
-use App\Models\Paiement;
 use App\Models\Transaction;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Carbon\Carbon;
-use GuzzleHttp\Client;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+use App\Services\BailService;
 
 class WebhookService
 {
+    public function __construct(protected BailService $bailService) {}
     // ═══════════════════════════════════════════
-    // VÉRIFICATION DES SIGNATURES
+    // VÉRIFICATION SIGNATURE
     // ═══════════════════════════════════════════
 
-    public function verifierSignaturePaypal(Request $request): bool
+    public function verifierSignature(Request $request): bool
     {
-        if (config('app.env') === 'local') {
-            Log::info("🧪 Mode TEST : Vérification signature PayPal désactivée");
+        $masterKey = config('services.paydunya.master_key');
+
+        if (!$masterKey) {
+            Log::error('Clé PayDunya manquante dans la configuration.');
+            return false;
+        }
+
+        $expectedHash = hash('sha512', $masterKey);
+        $headerHash = $request->header('PAYDUNYA-MASTER-KEY');
+        $payloadHash = $request->input('data.hash');
+
+        if ($headerHash && hash_equals($expectedHash, $headerHash)) {
             return true;
         }
 
-        try {
-            $accessToken = $this->getPaypalAccessToken();
-
-            $verifyUrl = config('services.paypal.sandbox')
-                ? 'https://api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature'
-                : 'https://api-m.paypal.com/v1/notifications/verify-webhook-signature';
-
-            $client   = new Client();
-            $response = $client->post($verifyUrl, [
-                'headers' => [
-                    'Authorization' => "Bearer {$accessToken}",
-                    'Content-Type'  => 'application/json',
-                ],
-                'json' => [
-                    'auth_algo'       => $request->header('PAYPAL-AUTH-ALGO'),
-                    'cert_url'        => $request->header('PAYPAL-CERT-URL'),
-                    'transmission_id' => $request->header('PAYPAL-TRANSMISSION-ID'),
-                    'transmission_sig' => $request->header('PAYPAL-TRANSMISSION-SIG'),
-                    'transmission_time' => $request->header('PAYPAL-TRANSMISSION-TIME'),
-                    'webhook_id'      => config('services.paypal.webhook_id'),
-                    'webhook_event'   => json_decode($request->getContent(), true),
-                ],
-            ]);
-
-            $result = json_decode($response->getBody(), true);
-
-            return ($result['verification_status'] ?? '') === 'SUCCESS';
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur vérification signature PayPal : " . $e->getMessage());
-            return false;
-        }
-    }
-
-    public function verifierSignaturePaydunya(Request $request): bool
-    {
-        if (config('app.env') === 'local') {
-            Log::info("🧪 Mode TEST : Vérification signature PayDunya désactivée");
+        if ($payloadHash && hash_equals($expectedHash, $payloadHash)) {
             return true;
         }
 
-        try {
-            $token    = config('services.paydunya.token');
-            $masterKey = config('services.paydunya.master_key');
-
-            if (!$token || !$masterKey) {
-                Log::error("❌ Clés PayDunya manquantes dans config");
-                return false;
-            }
-
-            $receivedToken = $request->header('X-PayDunya-Token');
-
-            if (!$receivedToken) {
-                Log::warning("⚠️ Header X-PayDunya-Token manquant");
-                return false;
-            }
-
-            return hash_equals($token, $receivedToken);
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur vérification signature PayDunya : " . $e->getMessage());
-            return false;
-        }
+        return false;
     }
 
     // ═══════════════════════════════════════════
-    // TRAITEMENT COMMUN APRÈS PAIEMENT VALIDÉ
+    // HANDLER PRINCIPAL
     // ═══════════════════════════════════════════
 
-    public function validerPaiement(Transaction $transaction, Paiement $paiement, ?string $referenceExterne = null): void
-    {
-        $transaction->update([
-            'reference_externe' => $referenceExterne ?? $transaction->reference_externe,
-            'statut'            => 'valide',
-            'ip_address'        => request()->ip(),
-            'date_transaction'  => now(),
-        ]);
-
-        $paiement->update([
-            'montant_paye'    => $transaction->montant,
-            'montant_restant' => 0,
-            'statut'          => 'payé',
-            'date_paiement'   => now(),
-        ]);
-
-        if ($paiement->type === 'signature') {
-            $this->activerBail($paiement->bail, $transaction);
-        }
-    }
-
-    public function rembourserPaiement(Transaction $transaction, Paiement $paiement, Bail $bail): void
-    {
-        $transaction->update(['statut' => 'rembourse']);
-
-        $paiement->update([
-            'montant_paye'    => 0,
-            'montant_restant' => $paiement->montant_attendu,
-            'statut'          => 'impayé',
-        ]);
-
-        if ($paiement->type === 'signature' && $bail->statut === 'actif') {
-            $bail->update(['statut' => 'resilie']);
-            $bail->logement->update(['statut_occupe' => 'disponible']);
-        }
-
-        Log::info("🔄 Paiement remboursé - bail {$bail->id}");
-    }
-
-    public function rejeterTransaction(Transaction $transaction): void
-    {
-        $transaction->update(['statut' => 'rejete']);
-        Log::info("❌ Transaction {$transaction->id} rejetée");
-    }
-
-    // ═══════════════════════════════════════════
-    // ACTIVATION DU BAIL
-    // ═══════════════════════════════════════════
-
-    public function activerBail(Bail $bail, Transaction $transaction): void
-    {
-        Log::info("🔄 Activation du bail {$bail->id} via transaction {$transaction->id}");
-
-        if ($bail->statut === 'actif') {
-            Log::warning("⚠️ Bail {$bail->id} déjà actif");
-            return;
-        }
-
-        $bail->update([
-            'statut'           => 'actif',
-            'date_activation'  => now(),
-        ]);
-
-        $this->genererPaiementsMensuels($bail);
-
-        $bail->logement->update(['statut_occupe' => 'loue']);
-
-        if ($bail->demande_id) {
-            \App\Models\Demande::find($bail->demande_id)?->update(['statut' => 'bail_signe']);
-        }
-
-        $this->genererBailPDF($bail, $transaction);
-
-        event(new \App\Events\BailSigne($bail));
-
-        Log::info("✅ Bail {$bail->id} activé avec succès");
-    }
-
-    // ═══════════════════════════════════════════
-    // GÉNÉRATION PDF
-    // ═══════════════════════════════════════════
-
-    public function genererBailPDF(Bail $bail, Transaction $transaction): void
+    public function handle(Request $request): array
     {
         try {
-            $bail->load(['locataire.user', 'logement.propriete.proprietaire.user']);
+            if (!$this->verifierSignature($request)) {
+                Log::warning('❌ Signature webhook PayDunya invalide', [
+                    'ip' => $request->ip(),
+                ]);
 
-            $pdf      = PDF::loadView('bail_pdf', compact('bail', 'transaction'));
-            $filename = "bail_{$bail->id}_" . now()->format('Ymd_His') . ".pdf";
-            $path     = "baux/{$filename}";
+                return ['error' => 'Invalid signature', 'status' => 403];
+            }
 
-            Storage::disk('public')->put($path, $pdf->output());
+            $token = $request->input('data.invoice.token')
+                ?? $request->input('data.token')
+                ?? $request->input('token');
 
-            $bail->update(['document_pdf_path' => $path]);
+            $statut = $request->input('data.status')
+                ?? $request->input('status');
 
-            Log::info("📄 PDF généré : {$path}");
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur génération PDF : " . $e->getMessage());
-        }
-    }
+            $montantRecu = $this->normaliserMontant(
+                $request->input('data.invoice.total_amount')
+                    ?? $request->input('data.total_amount')
+                    ?? $request->input('total_amount')
+            );
 
-    // ═══════════════════════════════════════════
-    // GÉNÉRATION DES LOYERS MENSUELS
-    // ═══════════════════════════════════════════
+            $transactionRef = $request->input('data.transaction_id')
+                ?? $request->input('transaction_id')
+                ?? $token;
 
-    public function genererPaiementsMensuels(Bail $bail): void
-    {
-        $dejaCree = Paiement::where('bail_id', $bail->id)
-            ->where('type', 'loyer_mensuel')
-            ->exists();
+            if (!$token) {
+                Log::error('❌ Token manquant dans IPN PayDunya', [
+                    'payload' => $request->all(),
+                ]);
 
-        if ($dejaCree) {
-            Log::warning("⚠️ Paiements mensuels déjà générés pour bail {$bail->id}");
-            return;
-        }
+                return ['error' => 'Missing token', 'status' => 400];
+            }
 
-        $current = Carbon::parse($bail->date_debut)->addMonth();
-        $end     = Carbon::parse($bail->date_fin);
-        $montant = $bail->montant_loyer + $bail->charges_mensuelles;
+            if (!$statut) {
+                Log::error('❌ Statut manquant dans IPN PayDunya', [
+                    'token' => $token,
+                    'payload' => $request->all(),
+                ]);
 
-        Log::info("📅 Génération des paiements mensuels pour bail {$bail->id}");
+                return ['error' => 'Missing status', 'status' => 400];
+            }
 
-        while ($current <= $end) {
-            $jour         = min($bail->jour_echeance, $current->copy()->endOfMonth()->day);
-            $dateEcheance = $current->copy()->day($jour);
+            $transaction = Transaction::query()
+                ->where('paydunyatoken', $token)
+                ->with([
+                    'paiement.bail',
+                    'subscription.plan',
+                    'subscription.proprietaire',
+                ])
+                ->first();
 
-            Paiement::create([
-                'locataire_id'    => $bail->locataire_id,
-                'bail_id'         => $bail->id,
-                'type'            => 'loyer_mensuel',
-                'montant_attendu' => $montant,
-                'montant_paye'    => 0,
-                'montant_restant' => $montant,
-                'statut'          => 'impayé',
-                'date_echeance'   => $dateEcheance,
-                'periode'         => $current->isoFormat('MMMM YYYY'),
+            if (!$transaction) {
+                Log::error("❌ Transaction introuvable pour le token {$token}");
+
+                return ['error' => 'Transaction not found', 'status' => 404];
+            }
+
+            if ($transaction->statut !== 'en_attente') {
+                Log::info("⏭️ Transaction {$transaction->id} déjà traitée", [
+                    'transaction_id' => $transaction->id,
+                    'statut' => $transaction->statut,
+                ]);
+
+                return ['success' => true, 'message' => 'Already processed', 'status' => 200];
+            }
+
+            if ($montantRecu !== null && !$this->montantsCorrespondent($transaction->montant, $montantRecu)) {
+                Log::error("❌ Montant incorrect pour la transaction {$transaction->id}", [
+                    'attendu' => $this->normaliserMontant($transaction->montant),
+                    'recu' => $montantRecu,
+                    'token' => $token,
+                ]);
+
+                return ['error' => 'Invalid amount', 'status' => 400];
+            }
+
+            return match ($transaction->type) {
+                'rent_payment' => $this->handlePayment($transaction, $statut),
+                'subscription_payment' => $this->handleSubscription($transaction, $statut, $transactionRef),
+                default => [
+                    'error' => 'Unknown transaction type',
+                    'status' => 400,
+                ],
+            };
+        } catch (\Throwable $e) {
+            Log::error('❌ Erreur inattendue dans WebhookService', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
-            $current->addMonth();
+            return ['error' => 'Internal server error', 'status' => 500];
         }
-
-        Log::info("✅ Paiements mensuels générés pour bail {$bail->id}");
     }
 
-    // ─── Privé ───────────────────────────────────────────────────
+    // ═══════════════════════════════════════════
+    // HANDLER LOYER
+    // ═══════════════════════════════════════════
 
-    private function getPaypalAccessToken(): string
+    private function handlePayment(Transaction $transaction, string $statut): array
     {
-        $client  = new Client();
-        $baseUrl = config('services.paypal.sandbox')
-            ? 'https://api-m.sandbox.paypal.com'
-            : 'https://api-m.paypal.com';
+        $paiement = $transaction->paiement;
 
-        $response = $client->post("{$baseUrl}/v1/oauth2/token", [
-            'auth'        => [config('services.paypal.client_id'), config('services.paypal.secret')],
-            'form_params' => ['grant_type' => 'client_credentials'],
-        ]);
+        if (!$paiement) {
+            Log::error("❌ Paiement introuvable pour transaction {$transaction->id}");
 
-        return json_decode($response->getBody(), true)['access_token'];
+            return ['error' => 'Paiement not found', 'status' => 404];
+        }
+
+        switch ($statut) {
+            case 'completed':
+                DB::transaction(function () use ($transaction, $paiement) {
+                    $transaction->update([
+                        'statut' => 'valide',
+                        'date_transaction' => $transaction->date_transaction ?? now(),
+                    ]);
+
+                    $paiement->update([
+
+
+                        'statut'          => 'payé',
+                        'montant_paye'    => $transaction->montant,
+                        'montant_restant' => max(0, $paiement->montant_attendu - $transaction->montant),
+                        'date_paiement'   => now(),
+                    ]);
+
+                    if ($paiement->type === 'signature') {
+                        $bail = $paiement->bail;
+
+                        if (!$bail) {
+                            throw new \RuntimeException("Bail introuvable pour paiement {$paiement->id}");
+                        }
+
+                        $bail->update([
+                            'statut' => 'actif',
+                            'date_activation' => now(),
+                        ]);
+
+                        $bail->logement->update(['statut_occupe' => 'occupe']);
+
+                        event(new \App\Events\BailSigne($bail)); 
+
+                        $this->bailService->genererLoyersMensuels($bail);
+                         $this->bailService->genererEtStockerPdf($bail); 
+                    }
+                });
+
+                Log::info('✅ Paiement loyer validé', [
+                    'transaction_id' => $transaction->id,
+                    'paiement_id' => $paiement->id,
+                ]);
+
+                return ['success' => true, 'message' => 'Paiement validé', 'status' => 200];
+
+            case 'cancelled':
+            case 'failed':
+                $transaction->update(['statut' => 'rejete']);
+
+                Log::warning('⚠️ Paiement loyer rejeté ou annulé', [
+                    'transaction_id' => $transaction->id,
+                    'statut_paydunya' => $statut,
+                ]);
+
+                return ['success' => true, 'message' => 'Paiement annulé', 'status' => 200];
+
+            case 'pending':
+                Log::info('⏳ Paiement loyer en attente', [
+                    'transaction_id' => $transaction->id,
+                ]);
+
+                return ['success' => true, 'message' => 'Payment pending', 'status' => 200];
+
+            default:
+                Log::warning("⚠️ Statut PayDunya inconnu pour paiement loyer : {$statut}", [
+                    'transaction_id' => $transaction->id,
+                ]);
+
+                return ['success' => true, 'message' => 'Unknown status', 'status' => 200];
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // HANDLER ABONNEMENT
+    // ═══════════════════════════════════════════
+
+    private function handleSubscription(Transaction $transaction, string $statut, string $transactionRef): array
+    {
+        $subscription = $transaction->subscription;
+
+        if (!$subscription) {
+            Log::error("❌ Subscription introuvable pour transaction {$transaction->id}");
+
+            return ['error' => 'Subscription not found', 'status' => 404];
+        }
+
+        if (!$subscription->plan) {
+            Log::error("❌ Plan introuvable pour subscription {$subscription->id}");
+
+            return ['error' => 'Plan not found', 'status' => 404];
+        }
+
+        if (!$subscription->proprietaire) {
+            Log::error("❌ Propriétaire introuvable pour subscription {$subscription->id}");
+
+            return ['error' => 'Proprietaire not found', 'status' => 404];
+        }
+
+        switch ($statut) {
+            case 'completed':
+                $startedAt = now();
+                $endsAt = $subscription->plan->billing_cycle === 'yearly'
+                    ? $startedAt->copy()->addYear()
+                    : $startedAt->copy()->addMonth();
+
+                DB::transaction(function () use ($transaction, $subscription, $transactionRef, $startedAt, $endsAt) {
+                    $transaction->update([
+                        'statut' => 'valide',
+                    ]);
+
+                    $subscription->update([
+                        'status' => 'active',
+                        'transaction_ref' => $transactionRef,
+                        'starts_at' => $startedAt,
+                        'ends_at' => $endsAt,
+                    ]);
+
+                    $subscription->proprietaire->update([
+                        'subscription_status' => 'active',
+                        'plan' => $subscription->plan->tier,
+                        'billing_cycle' => $subscription->plan->billing_cycle,
+                        'subscription_ends_at' => $endsAt,
+                    ]);
+                });
+
+                Log::info('✅ Abonnement activé', [
+                    'transaction_id' => $transaction->id,
+                    'subscription_id' => $subscription->id,
+                    'proprietaire_id' => $subscription->proprietaire_id,
+                    'plan' => $subscription->plan->tier,
+                ]);
+
+                return ['success' => true, 'message' => 'Abonnement activé', 'status' => 200];
+
+            case 'cancelled':
+            case 'failed':
+                DB::transaction(function () use ($transaction, $subscription) {
+                    $transaction->update(['statut' => 'rejete']);
+                    $subscription->update(['status' => 'failed']);
+                });
+
+                Log::warning('⚠️ Paiement abonnement annulé ou échoué', [
+                    'transaction_id' => $transaction->id,
+                    'statut_paydunya' => $statut,
+                ]);
+
+                return ['success' => true, 'message' => 'Paiement annulé', 'status' => 200];
+
+            case 'pending':
+                Log::info('⏳ Paiement abonnement en attente', [
+                    'transaction_id' => $transaction->id,
+                ]);
+
+                return ['success' => true, 'message' => 'Payment pending', 'status' => 200];
+
+            default:
+                Log::warning("⚠️ Statut PayDunya inconnu pour abonnement : {$statut}", [
+                    'transaction_id' => $transaction->id,
+                ]);
+
+                return ['success' => true, 'message' => 'Unknown status', 'status' => 200];
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // HELPERS
+    // ═══════════════════════════════════════════
+
+    private function normaliserMontant($montant): ?string
+    {
+        if ($montant === null || $montant === '') {
+            return null;
+        }
+
+        return number_format((float) $montant, 2, '.', '');
+    }
+
+    private function montantsCorrespondent($montantBase, $montantRecu): bool
+    {
+        return $this->normaliserMontant($montantBase) === $this->normaliserMontant($montantRecu);
     }
 }

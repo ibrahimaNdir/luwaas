@@ -2,17 +2,32 @@
 
 namespace App\Traits;
 
+use App\Models\Plan;
+
 use Carbon\Carbon;
 
+/**
+ * @property string $subscription_status
+ * @property string|null $plan
+ * @property string|null $billing_cycle
+ * @property \Carbon\Carbon|null $subscription_ends_at
+ * @property \Carbon\Carbon|null $trial_ends_at
+ * @property \Carbon\Carbon|null $cancelled_at
+ */
 trait Subscribable
-{
-    // ─────────────────────────────────────────
-    // 1. VÉRIFICATIONS D'ACCÈS
-    // ─────────────────────────────────────────
 
-    public function isInTrial(): bool
+{
+
+
+    public function isFreeTrial(): bool
     {
-        return $this->subscription_status === 'trial'
+        return $this->subscription_status === 'free_trial'
+            && $this->plan === 'free';
+    }
+
+    public function isFreeTrialActive(): bool
+    {
+        return $this->isFreeTrial()
             && $this->trial_ends_at instanceof Carbon
             && $this->trial_ends_at->isFuture();
     }
@@ -20,165 +35,195 @@ trait Subscribable
     public function hasActiveSubscription(): bool
     {
         return $this->subscription_status === 'active'
+            && $this->plan === 'pro'
             && $this->subscription_ends_at instanceof Carbon
             && $this->subscription_ends_at->isFuture();
     }
 
-    public function hasAccess(): bool
+    public function isExpired(): bool
     {
-        return $this->isInTrial() || $this->hasActiveSubscription();
+        return $this->subscription_status === 'expired';
+    }
+
+    public function isPro(): bool
+    {
+        return $this->plan === 'pro' && $this->hasActiveSubscription();
     }
 
     // ─────────────────────────────────────────
-    // 2. INFORMATIONS SUR LE TRIAL
+    // 2. ACCÈS GLOBAL
     // ─────────────────────────────────────────
 
-    public function trialDaysLeft(): int
+    public function hasAccess(): bool
     {
-        if (! $this->isInTrial()) {
+        return true;
+    }
+
+    public function canAccessBackOffice(): bool
+    {
+        return true;
+    }
+
+    // ─────────────────────────────────────────
+    // 3. RÉSOLUTION DU PLAN
+    // ─────────────────────────────────────────
+
+    public function resolvedPlan(): ?Plan
+    {
+        if (($this->plan ?? 'free') === 'free') {
+            return Plan::where('tier', 'free')
+                ->whereNull('billing_cycle')
+                ->where('is_active', true)
+                ->first();
+        }
+
+        return Plan::where('tier', 'pro')
+            ->where('billing_cycle', $this->billing_cycle ?? 'monthly')
+            ->where('is_active', true)
+            ->first();
+    }
+
+    // ─────────────────────────────────────────
+    // 4. PUBLICATIONS
+    // ─────────────────────────────────────────
+
+    public function canPublishLogement(): bool
+    {
+        $plan = $this->resolvedPlan();
+
+        if (! $plan) {
+            return false;
+        }
+
+        $publishedCount = $this->logements()
+            ->where('statut_publication', 'publie')
+            ->where('statut_occupe', 'disponible')
+            ->count();
+
+        // Cas 1 : Pro actif
+        if ($this->hasActiveSubscription()) {
+            if ($plan->publications_max === null) {
+                return true;
+            }
+
+            return $publishedCount < $plan->publications_max;
+        }
+
+        // Cas 2 : gratuit 15 jours actif
+        if ($this->isFreeTrialActive()) {
+            if ($plan->publications_max === null) {
+                return true;
+            }
+
+            return $publishedCount < $plan->publications_max;
+        }
+
+        // Cas 3 : gratuit expiré sans paiement
+        return false;
+    }
+
+    public function publicationsLeft(): int
+    {
+        $plan = $this->resolvedPlan();
+
+        if (! $plan) {
             return 0;
         }
 
-        return (int) now()->diffInDays($this->trial_ends_at, false);
-    }
+        if (! $this->hasActiveSubscription() && ! $this->isFreeTrialActive()) {
+            return 0;
+        }
 
-    public function isTrialEndingSoon(int $days = 5): bool
-    {
-        return $this->isInTrial() && $this->trialDaysLeft() <= $days;
-    }
+        if ($plan->publications_max === null) {
+            return 999;
+        }
 
-    // ─────────────────────────────────────────
-    // 3. INFORMATIONS SUR L'ABONNEMENT
-    // ─────────────────────────────────────────
+        $publishedCount = $this->logements()
+            ->where('statut_publication', 'publie')
+            ->where('statut_occupe', 'disponible')
+            ->count();
 
-    public function currentPlan(): ?string
-    {
-        return $this->plan ?? null;
-    }
-
-    public function isSubscriptionExpired(): bool
-    {
-        return $this->subscription_status === 'expired'
-            || ($this->subscription_ends_at instanceof Carbon
-                && $this->subscription_ends_at->isPast()
-                && $this->subscription_status !== 'trial');
-    }
-
-    public function isCancelled(): bool
-    {
-        return $this->subscription_status === 'cancelled';
+        return max(0, $plan->publications_max - $publishedCount);
     }
 
     // ─────────────────────────────────────────
-    // 4. RÉSUMÉ POUR LE FRONT / L'API
+    // 5. LIMITES DU PLAN
+    // ─────────────────────────────────────────
+
+    public function planLimits(): array
+    {
+        $plan = $this->resolvedPlan();
+
+        $publishedCount = $this->logements()
+            ->where('statut_publication', 'publie')
+            ->where('statut_occupe', 'disponible')
+            ->count();
+
+        return [
+            'plan' => $this->plan ?? 'free',
+            'publications_max' => $plan?->publications_max,
+            'publications_used' => $publishedCount,
+            'publications_left' => $this->publicationsLeft(),
+        ];
+    }
+
+    // ─────────────────────────────────────────
+    // 6. RÉSUMÉ FRONT
     // ─────────────────────────────────────────
 
     public function subscriptionSummary(): array
     {
         return [
-            'status'          => $this->subscription_status,
-            'plan'            => $this->currentPlan(),
-            'has_access'      => $this->hasAccess(),
-            'is_trial'        => $this->isInTrial(),
-            'trial_days_left' => $this->trialDaysLeft(),
-            'trial_ends_at'   => $this->trial_ends_at,
-            'ends_at'         => $this->subscription_ends_at,
-            'warning'         => $this->isTrialEndingSoon()
-                                    ? "Il vous reste {$this->trialDaysLeft()} jour(s) d'essai."
-                                    : null,
+            'status' => $this->subscription_status,
+            'plan' => $this->plan ?? 'free',
+            'billing_cycle' => $this->billing_cycle,
+            'has_access' => $this->hasAccess(),
+            'can_access_backoffice' => $this->canAccessBackOffice(),
+            'can_publish' => $this->canPublishLogement(),
+            'is_pro' => $this->isPro(),
+            'trial_ends_at' => $this->trial_ends_at,
+            'ends_at' => $this->subscription_ends_at,
+            'limits' => $this->planLimits(),
         ];
     }
-
-    // ─────────────────────────────────────────
-    // 5. FEATURE-GATING                        ← ✅ NOUVEAU
-    // ─────────────────────────────────────────
-
-    /**
-     * Vérifie si le plan autorise une fonctionnalité
-     * Features Pro : 'sms', 'export_excel', 'statistiques', 'cogestionnaires'
-     */
     public function canUseFeature(string $feature): bool
     {
-        // Trial → accès total (pour tester toutes les features)
-        if ($this->isInTrial()) return true;
+        $plan = $this->resolvedPlan();
 
-        // Enterprise → tout autorisé
-        if ($this->plan === 'enterprise') return true;
-
-        // Pro → tout autorisé
-        if ($this->plan === 'pro') return true;
-
-        // Starter → bloque les features Pro
-        $proOnlyFeatures = ['sms', 'export_excel', 'statistiques', 'cogestionnaires'];
-
-        if (in_array($feature, $proOnlyFeatures)) return false;
-
-        return true;
-    }
-
-    /**
-     * Vérifie si le bailleur peut ajouter un logement
-     * selon la limite de son plan
-     */
-    public function canAddLogement(): bool
-    {
-        // Trial ou Enterprise → illimité
-        if ($this->isInTrial() || $this->plan === 'enterprise') return true;
-
-        $plan = \App\Models\Plan::where('tier', $this->plan ?? 'starter')
-                                ->where('billing_cycle', $this->billing_cycle ?? 'monthly')
-                                ->first();
-
-        // Plan introuvable ou limite null = illimité
-        if (! $plan || $plan->biens_max === null) return true;
-
-        return $this->proprietes()->count() < $plan->biens_max;
-    }
-
-    /**
-     * Vérifie si le bailleur peut ajouter un locataire
-     * selon la limite de son plan
-     */
-    public function canAddLocataire(): bool
-    {
-        // Trial ou Enterprise ou Pro → illimité
-        if ($this->isInTrial()) return true;
-        if (in_array($this->plan, ['pro', 'enterprise'])) return true;
-
-        $plan = \App\Models\Plan::where('tier', $this->plan ?? 'starter')
-                                ->where('billing_cycle', $this->billing_cycle ?? 'monthly')
-                                ->first();
-
-        if (! $plan || $plan->locataires_max === null) return true;
-
-        return $this->locataires()->count() < $plan->locataires_max;
-    }
-
-    /**
-     * Retourne les limites actuelles du plan
-     * → utile pour afficher les quotas côté front
-     */
-    public function planLimits(): array
-    {
-        // Trial → tout illimité
-        if ($this->isInTrial()) {
-            return [
-                'biens_max'      => null,
-                'locataires_max' => null,
-                'biens_used'     => $this->proprietes()->count(),
-                'locataires_used'=> $this->locataires()->count(),
-            ];
+        if (!$plan || !is_array($plan->features)) {
+            return false;
         }
 
-        $plan = \App\Models\Plan::where('tier', $this->plan ?? 'starter')
-                                ->where('billing_cycle', $this->billing_cycle ?? 'monthly')
-                                ->first();
+        // Si la feature est directement dans le plan
+        if (in_array($feature, $plan->features)) {
+            return true;
+        }
 
-        return [
-            'biens_max'       => $plan?->biens_max,       // null = illimité
-            'locataires_max'  => $plan?->locataires_max,  // null = illimité
-            'biens_used'      => $this->proprietes()->count(),
-            'locataires_used' => $this->locataires()->count(),
-        ];
+        // Le plan pro-yearly a la clause "Tout le plan Pro" (pro-monthly)
+        if (in_array('Tout le plan Pro', $plan->features)) {
+            $proMonthlyPlan = Plan::where('tier', 'pro')->where('billing_cycle', 'monthly')->first();
+            if ($proMonthlyPlan && is_array($proMonthlyPlan->features)) {
+                if (in_array($feature, $proMonthlyPlan->features)) {
+                    return true;
+                }
+                // Si la feature n'est pas dans pro-monthly, vérifier s'il hérite du plan Gratuit
+                if (in_array('Tout le plan Gratuit', $proMonthlyPlan->features)) {
+                    $freePlan = Plan::where('tier', 'free')->first();
+                    if ($freePlan && is_array($freePlan->features) && in_array($feature, $freePlan->features)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Le plan pro-monthly a une clause "Tout le plan Gratuit"
+        if (in_array('Tout le plan Gratuit', $plan->features)) {
+            $freePlan = Plan::where('tier', 'free')->first();
+            if ($freePlan && is_array($freePlan->features) && in_array($feature, $freePlan->features)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
