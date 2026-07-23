@@ -85,14 +85,14 @@ class AdminSubscriptionController extends Controller
 
         // Met à jour le propriétaire
         $proprietaire->update([
-            'plan'                 => $plan->name,
+            'plan'                 => $plan->tier,
             'subscription_status'  => 'active',
             'subscription_ends_at' => now()->addMonth(),
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => "Plan changé vers {$plan->name} avec succès.",
+            'message' => "Plan changé vers {$plan->tier} avec succès.",
             'data'    => $subscription
         ]);
     }

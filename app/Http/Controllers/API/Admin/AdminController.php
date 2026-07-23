@@ -8,106 +8,86 @@ use App\Models\Locataire;
 use App\Models\Transaction;
 use App\Models\Paiement;
 use Illuminate\Http\Request;
+use App\Models\Subscription;
 
 class AdminController extends Controller
 {
     /**
      * Stats globales du SaaS
      */
-    public function stats()
-    {
-        $now = now();
+   public function stats()
+{
+    $now = now();
 
-        // ── Propriétaires ──────────────────────────────────────
-        $totalProprietaires      = Proprietaire::count();
-        $proprietairesActifs     = Proprietaire::where('is_actif', true)->count();
+    // ── Propriétaires ──────────────────────────
+    $totalProprietaires  = Proprietaire::count();
+    $proprietairesActifs = Proprietaire::where('is_actif', true)->count();
+    $nouveauxCeMois      = Proprietaire::whereMonth('created_at', $now->month)
+                            ->whereYear('created_at', $now->year)->count();
 
-        // Nouveaux ce mois-ci
-        $nouveauxCeMois          = Proprietaire::whereMonth('created_at', $now->month)
-                                               ->whereYear('created_at', $now->year)
-                                               ->count();
+    // ── Abonnements par statut ──────────────────
+    $abonnementsGratuit  = Proprietaire::where('subscription_status', 'gratuit')->count();
+    $abonnementsPro      = Proprietaire::where('subscription_status', 'active')
+                            ->where('plan', 'pro')->count();
+    $abonnementsExpires  = Proprietaire::where('subscription_status', 'expired')->count();
+    $annulesCeMois       = Proprietaire::where('subscription_status', 'cancelled')
+                            ->whereMonth('cancelled_at', $now->month)
+                            ->whereYear('cancelled_at', $now->year)->count();
 
-        // Nouveaux le mois dernier (pour calculer la croissance)
-        $nouveauxMoisDernier     = Proprietaire::whereMonth('created_at', $now->copy()->subMonth()->month)
-                                               ->whereYear('created_at', $now->copy()->subMonth()->year)
-                                               ->count();
+    $churnRate = $proprietairesActifs > 0
+        ? round(($annulesCeMois / ($proprietairesActifs + $annulesCeMois)) * 100, 2)
+        : 0;
 
-        // Churn rate : propriétaires annulés ce mois / total début de mois
-        $annulesCeMois           = Proprietaire::where('subscription_status', 'cancelled')
-                                               ->whereMonth('cancelled_at', $now->month)
-                                               ->whereYear('cancelled_at', $now->year)
-                                               ->count();
+    // ── MRR LUWAAS (abonnements Pro payés) ──────
+    $mrrLuwaas = Subscription::where('status', 'active')
+                    ->whereMonth('starts_at', $now->month)
+                    ->whereYear('starts_at', $now->year)
+                    ->sum('amount');
 
-        $churnRate = $proprietairesActifs > 0
-            ? round(($annulesCeMois / ($proprietairesActifs + $annulesCeMois)) * 100, 2)
-            : 0;
+    $mrrMoisDernier = Subscription::where('status', 'active')
+                        ->whereMonth('starts_at', $now->copy()->subMonth()->month)
+                        ->whereYear('starts_at', $now->copy()->subMonth()->year)
+                        ->sum('amount');
 
-        // ── Locataires ─────────────────────────────────────────
-        $totalLocataires         = Locataire::count();
+    $croissanceMrr = $mrrMoisDernier > 0
+        ? round((($mrrLuwaas - $mrrMoisDernier) / $mrrMoisDernier) * 100, 2)
+        : 0;
 
-        // ── Transactions ───────────────────────────────────────
-        $transactionsCeMois      = Transaction::where('statut', 'success')
-                                              ->whereMonth('date_transaction', $now->month)
-                                              ->whereYear('date_transaction', $now->year);
+    // ── Paiements loyers ────────────────────────
+    $paiementsEnAttente = Paiement::where('statut', 'en_attente')->count();
+    $paiementsEnRetard  = Paiement::where('statut', 'en_retard')->count();
 
-        // MRR = total des transactions réussies ce mois
-        $mrr                     = (clone $transactionsCeMois)->sum('montant');
-        $nombreTransactions      = (clone $transactionsCeMois)->count();
+    // ── Locataires ──────────────────────────────
+    $totalLocataires = Locataire::count();
 
-        // MRR mois dernier (pour comparer)
-        $mrrMoisDernier          = Transaction::where('statut', 'success')
-                                              ->whereMonth('date_transaction', $now->copy()->subMonth()->month)
-                                              ->whereYear('date_transaction', $now->copy()->subMonth()->year)
-                                              ->sum('montant');
+    return response()->json([
+        'success' => true,
+        'data' => [
+            // MRR Luwaas
+            'mrr'                   => $mrrLuwaas,
+            'mrr_mois_dernier'      => $mrrMoisDernier,
+            'croissance_mrr'        => $croissanceMrr,
 
-        // Croissance MRR en %
-        $croissanceMrr = $mrrMoisDernier > 0
-            ? round((($mrr - $mrrMoisDernier) / $mrrMoisDernier) * 100, 2)
-            : 0;
+            // Propriétaires
+            'total_proprietaires'   => $totalProprietaires,
+            'proprietaires_actifs'  => $proprietairesActifs,
+            'nouveaux_ce_mois'      => $nouveauxCeMois,
+            'churn_rate'            => $churnRate,
 
-        // ── Paiements ──────────────────────────────────────────
-        $paiementsEnAttente      = Paiement::where('statut', 'en_attente')->count();
-        $paiementsEnRetard       = Paiement::where('statut', 'en_retard')->count();
+            // Abonnements
+            'abonnements_gratuit'   => $abonnementsGratuit,
+            'abonnements_pro'       => $abonnementsPro,
+            'abonnements_expires'   => $abonnementsExpires,
 
-        // ── Abonnements par statut ─────────────────────────────
-        $abonnementsActifs       = Proprietaire::where('subscription_status', 'active')->count();
-        $abonnementsEssai        = Proprietaire::where('subscription_status', 'trial')->count();
-        $abonnementsExpires      = Proprietaire::where('subscription_status', 'expired')->count();
+            // Locataires
+            'total_locataires'      => $totalLocataires,
 
-        return response()->json([
-            'success' => true,
-            'data' => [
+            // Loyers
+            'paiements_en_attente'  => $paiementsEnAttente,
+            'paiements_en_retard'   => $paiementsEnRetard,
 
-                // KPIs principaux
-                'mrr'                    => $mrr,
-                'mrr_mois_dernier'       => $mrrMoisDernier,
-                'croissance_mrr'         => $croissanceMrr, // en %
-
-                // Propriétaires
-                'total_proprietaires'    => $totalProprietaires,
-                'proprietaires_actifs'   => $proprietairesActifs,
-                'nouveaux_ce_mois'       => $nouveauxCeMois,
-                'nouveaux_mois_dernier'  => $nouveauxMoisDernier,
-                'churn_rate'             => $churnRate, // en %
-
-                // Locataires
-                'total_locataires'       => $totalLocataires,
-
-                // Transactions
-                'transactions_ce_mois'   => $nombreTransactions,
-
-                // Paiements
-                'paiements_en_attente'   => $paiementsEnAttente,
-                'paiements_en_retard'    => $paiementsEnRetard,
-
-                // Abonnements
-                'abonnements_actifs'     => $abonnementsActifs,
-                'abonnements_essai'      => $abonnementsEssai,
-                'abonnements_expires'    => $abonnementsExpires,
-
-                // Meta
-                'genere_le'              => $now->toDateTimeString(),
-            ]
-        ]);
-    }
+            'genere_le'             => $now->toDateTimeString(),
+        ]
+    ]);
+}
 }
