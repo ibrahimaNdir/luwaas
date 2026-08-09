@@ -77,15 +77,14 @@ Cette commission n'est prelevee que sur les transactions passant reellement par 
 
 ### Paiement manuel (hors ligne)
 
-Un locataire peut regler son loyer en dehors de l'application (especes, Wave direct, virement). Dans ce cas, le bailleur enregistre le paiement via le bouton **"Marquer comme paye manuellement"** :
+Un locataire peut regler son loyer en dehors de l'application (especes, Wave direct, virement, cheque). Dans ce cas, le bailleur enregistre le paiement via le bouton **"Marquer comme paye manuellement"** :
 
 - Le loyer passe au statut "paye", les relances automatiques s'arretent.
-- Une quittance PDF est generee normalement.
+- Une quittance PDF est generee normalement, mais **non certifiee** (voir section Retention).
 - **Aucune commission n'est prelevee** sur ce paiement, puisque l'argent n'a pas transite par l'agregateur.
-- Un message informatif est affiche pour encourager, sans contrainte, l'usage du paiement en ligne :
-  > "Ce paiement a ete regle hors ligne. Note : les paiements effectues directement via Luwaas sont 100% automatises et securisent votre comptabilite."
+- Un message informatif est affiche pour encourager, sans contrainte, l'usage du paiement en ligne.
 
-Cette approche privilegie l'adoption et la retention plutot que l'extraction immediate de revenu sur chaque transaction.
+Cette approche privilegie l'adoption et la retention plutot que l'extraction immediate de revenu sur chaque transaction. Le paiement manuel **reste gratuit et sans friction** — c'est un choix produit non-negociable. La retention se joue sur la valeur ajoutee du paiement en ligne, jamais sur le blocage du paiement manuel.
 
 ### Plans disponibles
 
@@ -131,6 +130,41 @@ Cette approche privilegie l'adoption et la retention plutot que l'extraction imm
 
 ---
 
+## Mecanismes de retention
+
+Objectif : rendre le paiement en ligne objectivement plus avantageux que le paiement manuel, sans jamais bloquer ni penaliser financierement ce dernier. Quatre mecanismes complementaires, ancres dans la valeur plutot que dans la contrainte :
+
+### 1. Score de fiabilite du locataire
+
+- Colonnes `score_fiabilite`, `total_paiements_en_ligne`, `total_paiements_a_temps`, `total_paiements_en_retard` sur la table `locataires`.
+- `ScoreLocataireService` recalcule le score a chaque paiement en ligne valide (PayDunya), et croise un `ratio_certification` avec les paiements manuels pour eviter qu'un seul paiement en ligne isole ne "blanchisse" un historique majoritairement manuel.
+- Le score est expose au bailleur via `DemandeProprietaireResource` lors de la reception d'une candidature : un locataire fiable est identifie et accepte plus vite.
+- **Limitation connue** : un locataire sans historique (nouveau sur la plateforme) obtient aujourd'hui le meme `score_fiabilite = 0` qu'un mauvais payeur avere. Un champ distinguant "pas encore de donnees" d'un score reellement bas est a ajouter avant mise en production, pour ne pas penaliser les nouveaux locataires.
+
+### 2. Quittances certifiees + verification par QR code
+
+- Accesseur `est_certifie` sur le modele `Paiement` : vrai uniquement si une transaction validee existe et que son mode n'est ni `especes`, ni `wave_direct`, ni `virement`, ni `cheque`.
+- Le template `resources/views/pdf/quittance.blade.php` affiche un badge vert "Paiement certifie Luwaas (tracabilite garantie)" pour les paiements en ligne, et un avertissement pour les declarations manuelles.
+- **En cours d'implementation** : un QR code sera integre directement dans le PDF de la quittance (un seul document, pas de fichier separe), encodant un lien de verification unique (`verification_token` par paiement) vers une page publique `luwaas.sn/verifier/paiement/{token}`.
+  - La page confirme la legitimite du paiement (statut, montant, date) sans exposer l'identite complete des parties — le nom du locataire est tronque (ex. "Ibrahima N.") plutot qu'affiche en entier, et l'adresse precise du logement n'est pas exposee.
+  - La route rend une page HTML lisible (et non une reponse JSON brute), consultable directement depuis un navigateur mobile apres scan, sans application dediee.
+  - Objectif : rendre le badge "certifie" verifiable par un tiers (futur bailleur, banque, agent immobilier, tribunal en cas de litige) independamment du PDF lui-meme, qui reste modifiable par n'importe qui.
+- Le paiement manuel reste gratuit et sans friction ; seule la valeur documentaire de la quittance differe.
+
+### 3. Alerte dashboard bailleur
+
+- `ProprietaireDashboardService` calcule `loyers_manuels_du_mois`, expose via `ProprietaireDashboardResource`.
+- Permet au frontend d'afficher un message incitatif (ex. "Vous avez X paiements manuels ce mois-ci. Passez en paiement Luwaas pour reactiver les relances automatiques.").
+- Aucune automatisation supplementaire requise : les relances et calculs de retard ne fonctionnent deja que sur les paiements passant par l'app — le mecanisme rend simplement cette perte visible.
+
+### 4. Suivi admin du ratio manuel/en ligne
+
+- `AdminDashboardController` expose `GET /api/admin/bailleurs/ratio-paiements` (paginee, reservee au role admin).
+- Classe les bailleurs par ratio de paiements manuels / paiements totaux, pour une detection precoce des comptes qui decrochent du paiement en ligne.
+- Objectif : intervention commerciale ciblee (appel, geste commercial) plutot que sanction automatique.
+
+---
+
 ## Fonctionnalites detaillees
 
 ### Gestion des utilisateurs
@@ -147,7 +181,7 @@ Cette approche privilegie l'adoption et la retention plutot que l'extraction imm
 
 ### Demandes de location
 - Le locataire envoie une demande pour un logement (`POST /api/locataire/demandes`)
-- Le bailleur recoit et gere les demandes (`GET /api/proprietaire/demandes`)
+- Le bailleur recoit et gere les demandes (`GET /api/proprietaire/demandes`), avec le score de fiabilite du locataire integre a la reponse
 - Statuts geres : en attente, acceptee, refusee, bail cree
 - Historique complet pour chaque utilisateur
 
@@ -161,11 +195,11 @@ Cette approche privilegie l'adoption et la retention plutot que l'extraction imm
 ### Paiements
 - Suivi des loyers mensuels (paye, en retard, partiel)
 - Paiement en ligne via agregateur (Wave, Orange Money, carte bancaire) avec commission Luwaas
-- **Paiement manuel** (especes, Wave direct, virement) sans commission, avec generation de quittance
+- **Paiement manuel** (especes, Wave direct, virement, cheque) sans commission, avec generation de quittance non certifiee
 - Webhook IPN pour activation automatique des paiements en ligne
 - Historique des transactions lie a chaque bail (paiements en ligne et manuels distingues)
 - Relances automatiques de loyer (`SendRentReminders`) et alertes de retard (`RappelRetardsPaiement`), desactivees automatiquement lorsqu'un paiement manuel est enregistre
-- Generation de quittances PDF
+- Generation de quittances PDF, certifiees ou non selon le mode de paiement, avec QR code de verification en cours d'integration (voir Mecanismes de retention)
 
 ---
 
@@ -181,6 +215,7 @@ Cette approche privilegie l'adoption et la retention plutot que l'extraction imm
 | Base de donnees | MySQL / PostgreSQL |
 | Auth | Laravel Sanctum + OTP email |
 | PDF | barryvdh/laravel-dompdf |
+| QR Code | bacon/bacon-qr-code (en cours d'integration) |
 | Paiements | Agregateur de paiement (a confirmer), integration agnostique du PSP |
 | Containerisation | Docker + docker-compose |
 | Frontend mobile | Flutter (projet separe) |
@@ -229,7 +264,7 @@ docker-compose up -d
 docker-compose exec app php artisan migrate --seed
 ```
 
-### Scheduler (expiration des abonnements Pro & relances)
+### Scheduler (expiration des abonnements Pro, relances & scores)
 
 ```bash
 * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
@@ -287,8 +322,9 @@ docker-compose exec app php artisan migrate --seed
 
 | Methode | Endpoint | Description |
 |---------|----------|--------------|
-| POST | `/api/paiements/{id}/mark-as-paid-manually` | Marquer un loyer/signature comme paye hors ligne (0% commission) |
-| GET | `/api/paiements/{id}/quittance` | Generer/telecharger la quittance PDF |
+| POST | `/api/paiements/{id}/mark-as-paid-manually` | Marquer un loyer/signature comme paye hors ligne (0% commission, quittance non certifiee) |
+| GET | `/api/paiements/{id}/quittance` | Generer/telecharger la quittance PDF (certifiee ou non selon le mode) |
+| GET | `/api/verifier/paiement/{token}` | *(en cours)* Page publique de verification d'une quittance via QR code — retourne une page HTML, statut + montant + date uniquement |
 
 ### Demandes
 
@@ -296,7 +332,13 @@ docker-compose exec app php artisan migrate --seed
 |---------|----------|--------------|
 | POST | `/api/locataire/demandes` | Locataire : creer une demande |
 | GET | `/api/locataire/demandes` | Locataire : historique demandes |
-| GET | `/api/proprietaire/demandes` | Bailleur : demandes recues |
+| GET | `/api/proprietaire/demandes` | Bailleur : demandes recues, avec score de fiabilite du locataire |
+
+### Admin — Retention (auth admin requise)
+
+| Methode | Endpoint | Description |
+|---------|----------|--------------|
+| GET | `/api/admin/bailleurs/ratio-paiements` | Liste paginee des bailleurs classes par ratio paiements manuels / totaux |
 
 ---
 
@@ -306,25 +348,37 @@ docker-compose exec app php artisan migrate --seed
 ```
 Inscription -> OTP -> Login -> Recherche logement publie
 -> Demande -> Attente -> Bail cree -> Paiement signature (en ligne ou manuel)
--> Bail actif -> Loyers mensuels (en ligne ou manuel) -> Quittances PDF
+-> Bail actif -> Loyers mensuels (en ligne ou manuel) -> Quittances PDF (certifiees + QR si en ligne)
+-> Score de fiabilite construit a chaque paiement en ligne
 ```
 
 ### Bailleur
 ```
 Inscription -> OTP -> Dashboard actif immediatement (plan Starter)
 -> Ajoute et publie proprietes & logements (illimite, gratuit, sans friction)
--> Recoit des demandes -> Cree des baux
+-> Recoit des demandes, avec score de fiabilite du locataire -> Cree des baux
 -> Encaisse les loyers :
-     - via Luwaas (agregateur)  -> commission max(6000, 6%)
-     - hors ligne (cash/Wave)   -> paiement manuel, 0% commission, quittance generee
+     - via Luwaas (agregateur)  -> commission max(6000, 6%), quittance certifiee + QR verifiable
+     - hors ligne (cash/Wave)   -> paiement manuel, 0% commission, quittance non certifiee
+-> Alerte dashboard si paiements manuels frequents (relances desactivees)
 -> Optionnel : passe en Pro pour exports, rapports, SMS avances, mise en avant
 ```
 
 ### Admin
 ```
 Login -> Dashboard revenus (commissions + abonnements Pro) -> Gestion bailleurs
--> Suivi taux de paiements en ligne vs manuels -> Statistiques globales
+-> Suivi ratio de paiements en ligne vs manuels par bailleur -> Intervention commerciale ciblee
+-> Statistiques globales
 ```
+
+---
+
+## Limitations connues / Roadmap
+
+- **Cold start du score de fiabilite** : un locataire sans historique et un locataire avec un mauvais historique partagent aujourd'hui le meme `score_fiabilite = 0`. A corriger avant mise en production (distinguer "nouveau" de "score bas reel").
+- **QR code de verification (mecanisme #2)** : en cours d'implementation. Contraintes actees avant livraison : (1) l'endpoint public ne doit exposer aucune donnee personnelle complete (nom tronque, pas d'adresse precise) — seulement statut, montant et date ; (2) la route doit rendre une page HTML lisible, pas une reponse JSON brute.
+- Verifier l'eager loading des donnees de score dans `DemandeProprietaireResource` pour eviter un risque de requetes N+1 sur les listes de demandes a fort volume.
+- Ajouter une commande Artisan de recalcul (`scores:recalculer`) en securite, pour resynchroniser les scores en cas de paiement annule ou corrige manuellement en base.
 
 ---
 
