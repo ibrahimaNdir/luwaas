@@ -98,9 +98,18 @@ class ProprietaireDashboardService
         $tauxRecouvrement = $totalARecouvrir > 0
             ? round(($totalRecouvert / $totalARecouvrir) * 100, 1)
             : 0;
+
+        // ✅ NOUVEAU: MÉCANISME #3 - PAIEMENTS MANUELS DU MOIS
+        $loyersManuelsDuMois = $basePaiements()
+            ->where('statut', 'payé')
+            ->whereBetween('date_paiement', [$debutMois, $finMois])
+            ->whereHas('transactions', function ($query) {
+                $query->whereIn('mode_paiement', ['especes', 'wave_direct', 'virement', 'cheque']);
+            })
+            ->count();
  
         // ───────────────────────────────────────────────────────────────────────
-        // CONSTRUCTION DE LA RÉPONSE
+        // RETOUR DES DONNÉES
         // ───────────────────────────────────────────────────────────────────────
         
         return [
@@ -118,8 +127,10 @@ class ProprietaireDashboardService
                 'revenus_recus'         => $revenusMois,
                 'paiements_attendus'    => $paiementsAttendus,
                 'revenus_potentiels'    => $revenusMois + $paiementsAttendus,
-                'paiements_en_retard'   => $paiementsEnRetard,  // ✅ NOUVEAU
-                'taux_recouvrement'     => $tauxRecouvrement,   // ✅ NOUVEAU
+                'paiements_en_retard'   => $paiementsEnRetard,  
+                'taux_recouvrement'     => $tauxRecouvrement,   
+                'loyers_manuels_du_mois'=> $loyersManuelsDuMois, // ✅ NOUVEAU: Meca #3
+                'afficher_alerte_retention' => $loyersManuelsDuMois > 0, // ✅ Facilite le frontend
             ],
         ];
     }

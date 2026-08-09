@@ -122,10 +122,12 @@ class LogementService
 
 
 
-    public function updateStatus(int $id, string $statut, int $ownerId): ?Logement
+    public function updateStatus(int $proprieteId, int $id, string $statut, int $ownerId): ?Logement
     {
-        $logement = Logement::whereHas('propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
-            ->find($id);
+        $logement = Logement::where('propriete_id', $proprieteId)
+            ->whereHas('propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
+            ->where('id', $id)
+            ->first();
 
         if (!$logement) return null;
 

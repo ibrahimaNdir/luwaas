@@ -22,16 +22,33 @@ class Locataire extends Model
         'user_id',
         'locataire_id',
         'is_actif',
-
-
+        // ── Score de fiabilité
+        'score_fiabilite',
+        'total_paiements_en_ligne',
+        'total_paiements_a_temps',
+        'total_paiements_en_retard',
     ];
 
     protected $casts = [
-        'is_actif' => 'boolean',
-       
-
-
+        'is_actif'                   => 'boolean',
+        'score_fiabilite'            => 'integer',
+        'total_paiements_en_ligne'   => 'integer',
+        'total_paiements_a_temps'    => 'integer',
+        'total_paiements_en_retard'  => 'integer',
     ];
+
+    /**
+     * Libellé lisible du score pour le frontend.
+     */
+    public function scoreLabel(): string
+    {
+        return match(true) {
+            $this->score_fiabilite >= 90 => 'Excellent',
+            $this->score_fiabilite >= 75 => 'Bon',
+            $this->score_fiabilite >= 50 => 'Moyen',
+            default                      => 'Insuffisant',
+        };
+    }
 
     public function user()
     {

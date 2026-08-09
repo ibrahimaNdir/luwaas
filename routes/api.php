@@ -21,6 +21,8 @@ use App\Http\Controllers\API\Admin\AdminBailController;
 use App\Http\Controllers\API\Admin\AdminDemandeController;
 use App\Http\Controllers\API\Admin\AdminUserController;
 use App\Http\Controllers\API\Admin\AdminPaymentController;
+use App\Http\Controllers\API\Admin\AdminTicketController;
+use App\Http\Controllers\API\TicketController;
 
 
 use App\Models\User;
@@ -71,6 +73,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/transactions/{id}/statut', [TransactionController::class, 'verifierStatut']);
     // Route::post('/transactions/{id}/relancer', [PaymentController::class, 'relancer']);
     // Route::post('/transactions/{id}/annuler', [PaymentController::class, 'annulerTransaction']);
+
+    // Tickets de support (locataires + propriétaires)
+    Route::get('/tickets', [TicketController::class, 'index']);
+    Route::post('/tickets', [TicketController::class, 'store']);
+    Route::get('/tickets/{id}', [TicketController::class, 'show']);
 });
 
 // ============================================
@@ -112,6 +119,13 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::get('/plans', [AdminSubscriptionController::class, 'plans']);
         Route::patch('/subscriptions/{proprietaireId}/change-plan', [AdminSubscriptionController::class, 'changePlan']);
         Route::patch('/subscriptions/{proprietaireId}/cancel', [AdminSubscriptionController::class, 'cancel']);
+
+        // Tickets de support
+        Route::get('/tickets/stats', [AdminTicketController::class, 'stats']);
+        Route::get('/tickets', [AdminTicketController::class, 'index']);
+        Route::get('/tickets/{id}', [AdminTicketController::class, 'show']);
+        Route::post('/tickets/{id}/repondre', [AdminTicketController::class, 'repondre']);
+        Route::patch('/tickets/{id}/fermer', [AdminTicketController::class, 'fermer']);
     });
 
 // ============================================
@@ -169,8 +183,7 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
         Route::patch(
             '/proprietes/{proprieteId}/logements/{id}/status',
             [LogementController::class, 'updateStatusPublication']
-        )
-            ->middleware('check.publication');
+        );
 
         Route::patch(
             '/proprietes/{proprieteId}/logements/{id}/highlight',
@@ -208,6 +221,10 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
 
         // Paiements loyers
         Route::get('/paiements', [PaymentController::class, 'paiementsProprietaire']);
+        Route::patch('/paiements/{id}/manuel', [PaymentController::class, 'markAsPaidManually']);
+
+        // Score Locataire (NOUVEAU)
+        Route::get('/locataires/{id}/score', [\App\Http\Controllers\API\LocataireController::class, 'voirScoreProprietaire']);
     });
 
 // ============================================
@@ -243,17 +260,20 @@ Route::middleware(['auth:sanctum', 'locataire'])->prefix('locataire')->group(fun
     Route::get('/paiements/stats', [PaymentController::class, 'statistiques']);
     Route::post('/paiements/{id}/initier', [PaymentController::class, 'initierLoyer']);
 
+    // Score (NOUVEAU)
+    Route::get('/mon-score', [\App\Http\Controllers\API\LocataireController::class, 'voirMonScore']);
+
     // Transactions loyers
     Route::get('/transactions', [TransactionController::class, 'indexLocataire']);
 });
 
 // ============================================
-// 🧪 ROUTE DE TEST
+// 🧪 ROUTE DE TEST & ADMIN
 // ============================================
 
-Route::middleware(['auth:sanctum', 'admin'])
-    ->get('/test-firestore/{userId}', function ($userId, NotificationService $notifService) {
-        $user = User::find($userId);
+Route::middleware(['auth:sanctum', 'admin'])->group(function () {
+    Route::get('/test-firestore/{userId}', function ($userId, \App\Services\NotificationService $notifService) {
+        $user = \App\Models\User::find($userId);
         if (!$user) return response()->json(['error' => 'User not found'], 404);
 
         $notif = $notifService->sendToUser(
@@ -265,3 +285,9 @@ Route::middleware(['auth:sanctum', 'admin'])
 
         return response()->json(['message' => 'Envoyé !', 'mysql_notif' => $notif]);
     });
+
+    // NOUVEAU : Mécanisme #4 - Ratio paiements (Admin)
+    Route::prefix('admin')->group(function () {
+        Route::get('/bailleurs/ratio-paiements', [\App\Http\Controllers\API\AdminDashboardController::class, 'ratioPaiements']);
+    });
+});

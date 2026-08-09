@@ -2,16 +2,22 @@
 
 namespace App\Services;
 
+use App\Contracts\PaymentGatewayInterface;
 use App\Models\Paiement;
 use App\Models\Plan;
 use App\Models\Proprietaire;
+use App\Models\Payout;
 use App\Models\Subscription;
 use App\Models\Transaction;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PaymentService
 {
+    public function __construct(
+        protected PaymentGatewayInterface $gateway,
+        protected CommissionService $commissionService
+    ) {}
+
     // ═══════════════════════════════════════════
     // PLANS
     // ═══════════════════════════════════════════
@@ -40,17 +46,17 @@ class PaymentService
         $enCours = Transaction::where('type', 'rent_payment')
             ->where('paiement_id', $paiement->id)
             ->where('statut', 'en_attente')
-            ->where('expire_at', '>', now())  // ← ajouté
+            ->where('expire_at', '>', now())
             ->first();
 
         if ($enCours) {
             return [
                 'message'     => 'Une transaction est déjà en cours.',
                 'transaction' => [
-                    'id'        => $enCours->id,
-                    'reference' => $enCours->reference,
-                    'montant'   => $enCours->montant,
-                    'lien_paiement' => $enCours->lien_paiement, // ← bonus : renvoie direct le lien existant
+                    'id'            => $enCours->id,
+                    'reference'     => $enCours->reference,
+                    'montant'       => $enCours->montant,
+                    'lien_paiement' => $enCours->lien_paiement,
                 ],
                 'status' => 422,
             ];
@@ -68,7 +74,7 @@ class PaymentService
         $enCours = Transaction::where('type', 'subscription_payment')
             ->where('subscription_id', $subscription->id)
             ->where('statut', 'en_attente')
-            ->where('expire_at', '>', now())  // ← ajouté
+            ->where('expire_at', '>', now())
             ->first();
 
         if ($enCours) {
@@ -78,7 +84,7 @@ class PaymentService
                     'id'            => $enCours->id,
                     'reference'     => $enCours->reference,
                     'montant'       => $enCours->montant,
-                    'lien_paiement' => $enCours->lien_paiement, // ← bonus, même logique
+                    'lien_paiement' => $enCours->lien_paiement,
                 ],
                 'status' => 422,
             ];
@@ -90,7 +96,6 @@ class PaymentService
     // ═══════════════════════════════════════════
     // LOYER
     // ═══════════════════════════════════════════
-
 
     public function initierLoyer(Paiement $paiement, string $operateur, ?string $telephone, string $ip): array
     {
@@ -104,21 +109,24 @@ class PaymentService
             'telephone_payeur' => $telephone,
             'ip_address'       => $ip,
             'date_transaction' => now(),
+            'expire_at'        => now()->addMinutes(30),
         ]);
 
         try {
-            $paymentData = $this->appelerPaydunya($transaction, [
+            $paymentData = $this->gateway->initiateCheckout($transaction, [
                 'description'   => "Paiement {$paiement->type} - {$paiement->periode}",
                 'store_tagline' => 'Bail ' . $paiement->bail_id,
                 'cancel_url'    => config('app.url') . '/paiement/annule',
                 'return_url'    => config('app.url') . '/paiement/succes',
-                'callback_url'  => config('app.url') . '/api/webhook/paydunya',
+                'callback_url'  => config('app.url') . '/api/webhook/payment',
+                'custom_data'   => ['paiement_id' => $paiement->id, 'type' => 'rent_payment'],
             ]);
         } catch (\Exception $e) {
             $transaction->update(['statut' => 'rejete']);
             throw $e;
         }
 
+        $transaction->update(['lien_paiement' => $paymentData['payment_url'] ?? null]);
         $transaction->refresh();
 
         return [$transaction, $paymentData];
@@ -127,8 +135,6 @@ class PaymentService
     // ═══════════════════════════════════════════
     // ABONNEMENT
     // ═══════════════════════════════════════════
-
-
 
     public function creerSubscription(Proprietaire $proprietaire, int $planId, string $operateur): Subscription
     {
@@ -139,7 +145,7 @@ class PaymentService
             'plan_id'         => $plan->id,
             'status'          => 'pending',
             'amount'          => $plan->price_xof,
-            'payment_gateway' => 'paydunya',
+            'payment_gateway' => config('luwaas.active_gateway', 'paydunya'),
             'payment_method'  => $operateur,
             'starts_at'       => null,
             'ends_at'         => null,
@@ -160,25 +166,26 @@ class PaymentService
             'telephone_payeur' => $telephone,
             'ip_address'       => $ip,
             'date_transaction' => now(),
+            'expire_at'        => now()->addMinutes(30),
         ]);
 
-        Log::info("💳 Transaction abonnement créée", ['id' => $transaction->id]);
+        Log::info('💳 Transaction abonnement créée', ['id' => $transaction->id]);
 
         try {
-            $paymentData = $this->appelerPaydunya($transaction, [
+            $paymentData = $this->gateway->initiateCheckout($transaction, [
                 'description'   => "Luwaas – Abonnement {$plan->name} ({$plan->billing_cycle})",
                 'store_tagline' => 'Gestion locative SaaS',
                 'cancel_url'    => config('app.url') . '/abonnement/annule',
                 'return_url'    => config('app.url') . '/abonnement/succes',
-                'callback_url'  => config('app.url') . '/api/webhook/paydunya',
+                'callback_url'  => config('app.url') . '/api/webhook/payment',
+                'custom_data'   => ['subscription_id' => $subscription->id, 'type' => 'subscription_payment'],
             ]);
         } catch (\Exception $e) {
             $transaction->update(['statut' => 'rejete']);
             throw $e;
         }
 
-        $subscription->update(['paydunya_token' => $transaction->paydunyatoken]);
-
+        $transaction->update(['lien_paiement' => $paymentData['payment_url'] ?? null]);
         $transaction->refresh();
 
         return [$transaction, $paymentData];
@@ -204,7 +211,7 @@ class PaymentService
             'cancelled_at'        => now(),
         ]);
 
-        Log::info("🚫 Abonnement annulé", [
+        Log::info('🚫 Abonnement annulé', [
             'subscription_id' => $subscription->id,
             'proprietaire_id' => $proprietaire->id,
         ]);
@@ -221,77 +228,76 @@ class PaymentService
             ->latest()
             ->first()?->update(['status' => 'renewed']);
 
-        // Créer nouvelle subscription
+        // Créer nouvelle subscription et initier le paiement
         $subscription = $this->creerSubscription($proprietaire, $planId, $operateur);
-
-        // Initier le paiement
         return $this->initierAbonnement($subscription, $operateur, $telephone, $ip);
     }
 
-
-
     // ═══════════════════════════════════════════
-    // PRIVÉS
+    // REVERSEMENT BAILLEUR
     // ═══════════════════════════════════════════
 
-    private function genererReference(string $prefix, int $contextId, int $modelId): string
+    /**
+     * Reverse le montant NET au bailleur (loyer - commission Luwaas).
+     *
+     * @param  Proprietaire $proprietaire   Objet bailleur (avec payout_phone)
+     * @param  float        $montantBrut    Montant total reçu du locataire
+     * @param  Transaction  $initialTransaction  Transaction source (pour traçabilité)
+     */
+    public function redistributeToBailleur(Proprietaire $proprietaire, float $montantBrut, Transaction $initialTransaction): array
     {
-        return strtoupper($prefix) . "-{$contextId}-{$modelId}-" . strtoupper(substr(uniqid(), -6));
+        // ── Calcul de la commission Luwaas (taux depuis config/luwaas.php)
+        $fraisLuwaas  = $this->commissionService->calculerFraisLuwaas($montantBrut);
+        $montantNet   = $montantBrut - $fraisLuwaas;
+
+        // ── Taux PSP pour le monitoring (lu depuis commission_rates DB)
+        $pspRate   = $this->gateway->getPspRate($initialTransaction->mode_paiement);
+        $fraisPsp  = $montantBrut * $pspRate;
+        $marge     = $fraisLuwaas - $fraisPsp;
+
+        Log::info('📊 Répartition financière loyer', [
+            'montant_brut'             => $montantBrut,
+            'frais_luwaas'             => $fraisLuwaas,
+            'montant_net_bailleur'     => $montantNet,
+            'frais_psp_absorbes'       => $fraisPsp,
+            'marge_luwaas'             => $marge,
+        ]);
+
+        // ── Enregistrer le payout avant l'appel
+        $payout = Payout::create([
+            'proprietaire_id' => $proprietaire->id,
+            'transaction_id'  => $initialTransaction->id,
+            'montant'         => $montantNet,
+            'statut'          => 'pending',
+        ]);
+
+        try {
+            $response = $this->gateway->directPayout(
+                $proprietaire->payout_phone,
+                $montantNet
+            );
+
+            $payout->update([
+                'statut'             => 'success',
+                'reference_paydunya' => $response['description'] ?? null,
+            ]);
+
+            return $response;
+        } catch (\Exception $e) {
+            $payout->update([
+                'statut' => 'failed',
+                'erreur' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
     }
 
-    private function appelerPaydunya(Transaction $transaction, array $options): array
+    // ═══════════════════════════════════════════
+    // HELPERS PRIVÉS
+    // ═══════════════════════════════════════════
+
+    private function genererReference(string $prefix, int $id1, int $id2): string
     {
-        $mode    = config('services.paydunya.mode', 'test');
-        $baseUrl = $mode === 'live'
-            ? 'https://app.paydunya.com/api/v1'
-            : 'https://app.paydunya.com/sandbox-api/v1';
-
-        $response = Http::withHeaders([
-            'PAYDUNYA-MASTER-KEY'  => config('services.paydunya.master_key'),
-            'PAYDUNYA-PRIVATE-KEY' => config('services.paydunya.private_key'),
-            'PAYDUNYA-TOKEN'       => config('services.paydunya.token'),
-            'Content-Type'         => 'application/json',
-        ])->post("{$baseUrl}/checkout-invoice/create", [
-            'invoice' => [
-                'total_amount' => (int) $transaction->montant,
-                'description'  => $options['description'],
-            ],
-            'store' => [
-                'name'    => 'Luwaas',
-                'tagline' => $options['store_tagline'],
-            ],
-            'actions' => [
-                'cancel_url'   => $options['cancel_url'],
-                'return_url'   => $options['return_url'],
-                'callback_url' => $options['callback_url'],
-            ],
-            'custom_data' => [
-                'transaction_id' => $transaction->id,
-                'reference'      => $transaction->reference,
-                'type'           => $transaction->type,
-            ],
-        ]);
-
-        if (!$response->successful() || ($response['response_code'] ?? null) !== '00') {
-            Log::error("❌ Erreur PayDunya", $response->json());
-            throw new \Exception("Erreur PayDunya : " . ($response['response_text'] ?? 'Inconnue'));
-        }
-
-        $token = $response->json('token');
-        $lienPaiement = $response->json('response_text'); // c'est bien l'URL ici
-
-        $transaction->update([
-            'paydunyatoken' => $token,
-            'lien_paiement'     => $lienPaiement,
-            'expire_at'         => now()->addMinutes(30),
-
-        ]);
-
-        Log::info("✅ PayDunya OK", ['transaction_id' => $transaction->id, 'type' => $transaction->type]);
-
-        return [
-            'payment_url' => $lienPaiement,
-            'token'       => $token,
-        ];
+        return strtoupper($prefix) . '-' . $id1 . '-' . $id2 . '-' . strtoupper(substr(uniqid(), -6));
     }
 }

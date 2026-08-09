@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Traits\Loggable;
+use App\Contracts\SmsProviderInterface;
 use Kreait\Firebase\Contract\Firestore;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
@@ -11,13 +13,17 @@ use Illuminate\Support\Facades\Log;
 
 class NotificationService
 {
+    use Loggable;
+
     protected $messaging;
     protected $firestore;
+    protected $sms;
 
-    public function __construct(Messaging $messaging, Firestore $firestore)
+    public function __construct(Messaging $messaging, Firestore $firestore, SmsProviderInterface $sms)
     {
         $this->messaging = $messaging;
         $this->firestore = $firestore;
+        $this->sms = $sms;
     }
 
     /**
@@ -33,7 +39,7 @@ class NotificationService
     public function sendToUser($user, $title, $body, $type, array $data = [])
     {
         if (!$user) {
-            Log::warning("NotificationService: Utilisateur null");
+            $this->logDev('warning', "NotificationService: Utilisateur null");
             return false;
         }
 
@@ -54,12 +60,12 @@ class NotificationService
                 
                 $this->messaging->send($message);
                 $fcmSent = true;
-                Log::info("✅ FCM envoyé à user {$user->id}");
+                $this->logDev('info', "✅ FCM envoyé à user {$user->id}");
             } catch (\Exception $e) {
-                Log::warning("❌ Erreur FCM user {$user->id}: " . $e->getMessage());
+                $this->logDev('warning', "❌ Erreur FCM user {$user->id}: " . $e->getMessage());
             }
         } else {
-            Log::info("⚠️ User {$user->id} n'a pas de FCM token");
+            $this->logDev('info', "⚠️ User {$user->id} n'a pas de FCM token");
         }
 
         // 2. ✅ Sauvegarder dans Firestore (TOUJOURS, même sans FCM token)
@@ -78,7 +84,7 @@ class NotificationService
                 ]);
             
             $firestoreSent = true;
-            Log::info("✅ Notification Firestore sauvegardée pour user {$user->id}");
+            $this->logDev('info', "✅ Notification Firestore sauvegardée pour user {$user->id}");
         } catch (\Exception $e) {
             Log::error("❌ Erreur Firestore user {$user->id}: " . $e->getMessage());
         }
@@ -106,9 +112,22 @@ class NotificationService
             }
         }
 
-        Log::info("📊 Notifications envoyées : {$successCount}/{count($users)}");
+        $this->logDev('info', "📊 Notifications envoyées : {$successCount}/{count($users)}");
         
         return $successCount;
+    }
+
+    /**
+     * Envoie un SMS via le fournisseur configuré
+     */
+    public function sendSms(string $to, string $message): bool
+    {
+        try {
+            return $this->sms->send($to, $message);
+        } catch (\Exception $e) {
+            Log::error("❌ Erreur lors de l'envoi du SMS à {$to}: " . $e->getMessage());
+            return false;
+        }
     }
 
     /**
@@ -130,7 +149,7 @@ class NotificationService
                     ['path' => 'read', 'value' => true]
                 ]);
 
-            Log::info("✅ Notification {$notificationId} marquée comme lue pour user {$userId}");
+            $this->logDev('info', "✅ Notification {$notificationId} marquée comme lue pour user {$userId}");
             return true;
         } catch (\Exception $e) {
             Log::error("❌ Erreur markAsRead: " . $e->getMessage());
@@ -162,7 +181,7 @@ class NotificationService
                 $count++;
             }
 
-            Log::info("✅ {$count} notifications marquées comme lues pour user {$userId}");
+            $this->logDev('info', "✅ {$count} notifications marquées comme lues pour user {$userId}");
             return $count;
         } catch (\Exception $e) {
             Log::error("❌ Erreur markAllAsRead: " . $e->getMessage());
@@ -187,7 +206,7 @@ class NotificationService
                 ->document($notificationId)
                 ->delete();
 
-            Log::info("✅ Notification {$notificationId} supprimée pour user {$userId}");
+            $this->logDev('info', "✅ Notification {$notificationId} supprimée pour user {$userId}");
             return true;
         } catch (\Exception $e) {
             Log::error("❌ Erreur deleteNotification: " . $e->getMessage());

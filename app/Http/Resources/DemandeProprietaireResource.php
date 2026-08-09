@@ -14,8 +14,8 @@ class DemandeProprietaireResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-       
-        
+        $profil = app(\App\Services\ScoreLocataireService::class)->getProfilFiabilite($this->locataire);
+
         return [
             // ✅ CHAMPS ESSENTIELS (décommentés et ajoutés)
             'id' => $this->id,
@@ -54,6 +54,16 @@ class DemandeProprietaireResource extends JsonResource
                 'prenom' => $this->locataire->user->prenom,
                 'telephone' => $this->locataire->user->telephone,
                 'email' => $this->locataire->user->email,
+                // NOUVEAU : Score de fiabilité
+                'score_fiabilite' => $this->locataire->score_fiabilite,
+                'score_label' => $this->locataire->scoreLabel(),
+                'total_paiements_en_ligne' => $this->locataire->total_paiements_en_ligne,
+                'total_paiements_en_retard' => $this->locataire->total_paiements_en_retard,
+                
+                // Meca #1 : Protection contre la manipulation et Cold start
+                'a_historique' => $profil['a_historique'] ?? false,
+                'ratio_certification' => $profil['ratio_certification'] ?? 0,
+                'total_paiements_payes' => $profil['total_paiements_payes'] ?? 0,
             ],
         ];
     }

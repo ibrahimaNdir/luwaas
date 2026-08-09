@@ -15,7 +15,6 @@ class Proprietaire extends Model
      * @property string|null $plan
      * @property string|null $billing_cycle
      * @property Carbon|null $subscription_ends_at
-     * @property Carbon|null $trial_ends_at
      * @property Carbon|null $cancelled_at
      */
 
@@ -23,18 +22,19 @@ class Proprietaire extends Model
         'user_id',
         'proprietaire_id',
         'is_actif',
-        'trial_ends_at',
         'subscription_status',        // 
         'subscription_ends_at',       // 
         'plan',                       // 
         'billing_cycle',              //
         'cancelled_at',               // 
+        'payout_channel',
+        'payout_phone',
+        'solde_credit',
     ];
 
     protected $casts = [
         'is_actif'             => 'boolean',
         'cni'                  => 'encrypted',
-        'trial_ends_at'        => 'datetime', // ✅ obligatoire pour isFuture()
         'subscription_ends_at' => 'datetime', // ✅ obligatoire pour isPast()
         'cancelled_at'         => 'datetime', // ✅ ajout
     ];

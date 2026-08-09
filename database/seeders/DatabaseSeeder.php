@@ -24,9 +24,8 @@ class DatabaseSeeder extends Seeder
             DepartementSeeder::class,
             CommuneSeeder::class,
             AdminSeeder::class,
-            PlanSeeder::class, 
-
-
+            PlanSeeder::class,
+            CommissionRateSeeder::class, // Taux PSP par opérateur (modifiable sans code)
         ]);
     }
 }

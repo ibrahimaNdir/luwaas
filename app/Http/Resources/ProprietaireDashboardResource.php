@@ -26,6 +26,8 @@ class ProprietaireDashboardResource extends JsonResource
                 'revenus_potentiels' => (int)($this['stats_mois_en_cours']['revenus_potentiels'] ?? 0),
                 'paiements_en_retard' => (int)($this['stats_mois_en_cours']['paiements_en_retard'] ?? 0),
                 'taux_recouvrement' => $this['stats_mois_en_cours']['taux_recouvrement'] ?? 0,
+                'loyers_manuels_du_mois' => (int)($this['stats_mois_en_cours']['loyers_manuels_du_mois'] ?? 0),
+                'afficher_alerte_retention' => (bool)($this['stats_mois_en_cours']['afficher_alerte_retention'] ?? false),
             ],
         ];
     }

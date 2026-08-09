@@ -87,11 +87,10 @@ class AuthController extends Controller
                 $profil = Proprietaire::create([
                     'user_id'              => $user->id,
                     'proprietaire_id'      => 'PROP-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
-                    'subscription_status'  => 'free_trial',
-                    'plan'                 => 'free',
+                    'subscription_status'  => 'active', // Toujours actif (Starter)
+                    'plan'                 => 'starter',
                     'billing_cycle'        => null,
-                    'trial_ends_at'        => Carbon::now()->addDays(15),
-                    'subscription_ends_at' => null,
+                    'subscription_ends_at' => null, // Pas de fin pour le plan Starter
                     'cancelled_at'         => null,
                 ]);
             } else {

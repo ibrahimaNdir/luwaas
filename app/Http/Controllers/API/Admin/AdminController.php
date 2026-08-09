@@ -44,6 +44,21 @@ class AdminController extends Controller
                     ->whereYear('starts_at', $now->year)
                     ->sum('amount');
 
+    // ── CALCUL MARGE NETTE (MRR - Commissions PayDunya absorbées) ──────
+    // 1. Volume total des loyers validés ce mois-ci
+    $volumeLoyers = Transaction::where('type', 'rent_payment')
+                        ->where('statut', 'valide')
+                        ->whereMonth('date_transaction', $now->month)
+                        ->whereYear('date_transaction', $now->year)
+                        ->sum('montant');
+
+    // 2. Estimation des commissions PayDunya absorbées (3% en moyenne)
+    $tauxCommissionPayDunya = 0.03; 
+    $commissionsAbsorbees = $volumeLoyers * $tauxCommissionPayDunya;
+
+    // 3. Marge nette réelle
+    $margeNette = $mrrLuwaas - $commissionsAbsorbees;
+
     $mrrMoisDernier = Subscription::where('status', 'active')
                         ->whereMonth('starts_at', $now->copy()->subMonth()->month)
                         ->whereYear('starts_at', $now->copy()->subMonth()->year)
@@ -65,6 +80,8 @@ class AdminController extends Controller
         'data' => [
             // MRR Luwaas
             'mrr'                   => $mrrLuwaas,
+            'marge_nette'           => round($margeNette, 2),
+            'commissions_paydunya'  => round($commissionsAbsorbees, 2),
             'mrr_mois_dernier'      => $mrrMoisDernier,
             'croissance_mrr'        => $croissanceMrr,
 

@@ -5,67 +5,64 @@ namespace App\Console\Commands;
 use App\Models\Proprietaire;
 use App\Models\Subscription;
 use App\Notifications\SubscriptionExpiredNotification;
-use App\Notifications\TrialEndingSoonNotification;
+use App\Notifications\GracePeriodStartedNotification;
 use Illuminate\Console\Command;
 
 class ExpireSubscriptions extends Command
 {
     protected $signature   = 'subscriptions:expire';
-    protected $description = 'Expire les trials et abonnements terminés + envoie les notifications';
+    protected $description = 'Expire les abonnements Pro terminés et rétrograde les comptes en Starter';
 
     public function handle(): void
     {
-        $this->expireTrials();
         $this->expirePaidSubscriptions();
         $this->expirePendingSubscriptions();
-        $this->notifyTrialEndingSoon();
 
         $this->info('✅ Traitement des abonnements terminé.');
     }
 
     // ─────────────────────────────────────────
-    // 1. EXPIRER LES TRIALS TERMINÉS
-    // ─────────────────────────────────────────
-
-    private function expireTrials(): void
-    {
-        $expired = Proprietaire::where('subscription_status', 'trial')
-            ->where('trial_ends_at', '<', now())
-            ->get();
-
-        foreach ($expired as $proprietaire) {
-            $proprietaire->update(['subscription_status' => 'expired']);
-
-            // Notifier le propriétaire
-            try {
-                $proprietaire->user->notify(new SubscriptionExpiredNotification('trial'));
-            } catch (\Exception $e) {
-                $this->warn('Notification échouée pour user_id: ' . $proprietaire->user_id);
-            }
-        }
-
-        $this->info("Trials expirés : {$expired->count()}");
-    }
-
-    // ─────────────────────────────────────────
-    // 2. EXPIRER LES ABONNEMENTS PAYANTS TERMINÉS
+    // 1. EXPIRER LES ABONNEMENTS PAYANTS TERMINÉS
     // ─────────────────────────────────────────
 
     private function expirePaidSubscriptions(): void
     {
-        $expired = Proprietaire::where('subscription_status', 'active')
+        // 1. Basculer de active à grace_period
+        $toGracePeriod = Proprietaire::where('subscription_status', 'active')
+            ->whereNotNull('subscription_ends_at')
             ->where('subscription_ends_at', '<', now())
             ->get();
 
-        foreach ($expired as $proprietaire) {
-            $proprietaire->update(['subscription_status' => 'expired']);
+        foreach ($toGracePeriod as $proprietaire) {
+            $proprietaire->update(['subscription_status' => 'grace_period']);
 
-            // Marquer la subscription en DB
+            // Marquer la facture/subscription comme expirée
             Subscription::where('proprietaire_id', $proprietaire->id)
                 ->where('status', 'active')
                 ->update(['status' => 'expired']);
 
-            // Notifier
+            try {
+                $proprietaire->user->notify(new GracePeriodStartedNotification());
+            } catch (\Exception $e) {
+                $this->warn('Notification Grace Period échouée pour user_id: ' . $proprietaire->user_id);
+            }
+        }
+
+        // 2. Basculer de grace_period à Starter (rétrogradation après 3 jours)
+        $expired = Proprietaire::where('subscription_status', 'grace_period')
+            ->whereNotNull('subscription_ends_at')
+            ->where('subscription_ends_at', '<', now()->subDays(3))
+            ->get();
+
+        foreach ($expired as $proprietaire) {
+            // Rétrogradation au lieu de suspension totale
+            $proprietaire->update([
+                'subscription_status'  => 'active',
+                'plan'                 => 'starter',
+                'billing_cycle'        => null,
+                'subscription_ends_at' => null,
+            ]);
+
             try {
                 $proprietaire->user->notify(new SubscriptionExpiredNotification('paid'));
             } catch (\Exception $e) {
@@ -73,33 +70,12 @@ class ExpireSubscriptions extends Command
             }
         }
 
-        $this->info("Abonnements payants expirés : {$expired->count()}");
+        $this->info("Abonnements basculés en grâce : {$toGracePeriod->count()}, rétrogradés en Starter : {$expired->count()}");
     }
 
     // ─────────────────────────────────────────
-    // 3. AVERTIR LES TRIALS QUI EXPIRENT BIENTÔT
+    // 2. EXPIRER LES PAIEMENTS ABANDONNÉS
     // ─────────────────────────────────────────
-
-    private function notifyTrialEndingSoon(): void
-    {
-        // Propriétaires dont le trial expire dans exactement 5 jours
-        $ending = Proprietaire::where('subscription_status', 'trial')
-            ->where('trial_ends_at', '<=', now()->addDays(5))
-            ->where('trial_ends_at', '>', now())
-            ->get();
-
-        foreach ($ending as $proprietaire) {
-            try {
-                $proprietaire->user->notify(
-                    new TrialEndingSoonNotification($proprietaire->trialDaysLeft())
-                );
-            } catch (\Exception $e) {
-                $this->warn('Notification échouée pour user_id: ' . $proprietaire->user_id);
-            }
-        }
-
-        $this->info("Notifications trial bientôt expiré envoyées : {$ending->count()}");
-    }
 
     private function expirePendingSubscriptions(): void
     {

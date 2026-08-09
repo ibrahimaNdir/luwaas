@@ -7,6 +7,8 @@ use App\Models\Transaction;
 use App\Models\Paiement;
 use Illuminate\Http\Request;
 
+use Illuminate\Support\Facades\DB;
+
 class AdminTransactionController extends Controller
 {
     /**
@@ -63,41 +65,54 @@ class AdminTransactionController extends Controller
     public function summary()
     {
         $now = now();
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+
+        $evolutionQuery = Transaction::whereIn('statut', ['valide', 'success'])
+            ->where('date_transaction', '>=', $now->copy()->subMonths(6));
+
+        if ($isSqlite) {
+            $evolution = $evolutionQuery
+                ->selectRaw("strftime('%Y-%m', date_transaction) as mois, SUM(montant) as total")
+                ->groupBy('mois')
+                ->orderBy('mois')
+                ->get();
+        } else {
+            $evolution = $evolutionQuery
+                ->selectRaw("DATE_FORMAT(date_transaction, '%Y-%m') as mois, SUM(montant) as total")
+                ->groupBy('mois')
+                ->orderBy('mois')
+                ->get();
+        }
 
         $data = [
             // Ce mois
-            'total_ce_mois'        => Transaction::where('statut', 'success')
+            'total_ce_mois'     => Transaction::whereIn('statut', ['valide', 'success'])
                                         ->whereMonth('date_transaction', $now->month)
                                         ->whereYear('date_transaction', $now->year)
                                         ->sum('montant'),
 
-            'nombre_ce_mois'       => Transaction::where('statut', 'success')
+            'nombre_ce_mois'    => Transaction::whereIn('statut', ['valide', 'success'])
                                         ->whereMonth('date_transaction', $now->month)
                                         ->whereYear('date_transaction', $now->year)
                                         ->count(),
 
             // Global
-            'total_global'         => Transaction::where('statut', 'success')->sum('montant'),
-            'total_echouees'       => Transaction::where('statut', 'failed')->count(),
-            'total_en_attente'     => Transaction::where('statut', 'pending')->count(),
+            'total_global'      => Transaction::whereIn('statut', ['valide', 'success'])->sum('montant'),
+            'total_echouees'    => Transaction::whereIn('statut', ['rejete', 'failed'])->count(),
+            'total_en_attente'  => Transaction::whereIn('statut', ['en_attente', 'pending'])->count(),
 
             // Par mode de paiement
-            'par_mode_paiement'    => Transaction::where('statut', 'success')
+            'par_mode_paiement' => Transaction::whereIn('statut', ['valide', 'success'])
                                         ->selectRaw('mode_paiement, SUM(montant) as total, COUNT(*) as nombre')
                                         ->groupBy('mode_paiement')
                                         ->get(),
 
             // Paiements loyer en retard
-            'loyers_en_retard'     => Paiement::where('statut', 'en_retard')->count(),
-            'loyers_en_attente'    => Paiement::where('statut', 'en_attente')->count(),
+            'loyers_en_retard'  => Paiement::whereIn('statut', ['en_retard', 'impayé'])->count(),
+            'loyers_en_attente' => Paiement::where('statut', 'en_attente')->count(),
 
             // Évolution 6 derniers mois
-            'evolution_6_mois'     => Transaction::where('statut', 'success')
-                                        ->where('date_transaction', '>=', $now->copy()->subMonths(6))
-                                        ->selectRaw("TO_CHAR(date_transaction, 'YYYY-MM') as mois, SUM(montant) as total")
-                                        ->groupBy('mois')
-                                        ->orderBy('mois')
-                                        ->get(),
+            'evolution_6_mois'  => $evolution,
         ];
 
         return response()->json([

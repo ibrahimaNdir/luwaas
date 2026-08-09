@@ -144,7 +144,14 @@ class DemandeController extends Controller
     {
         $proprietaireId = $this->proprietaireId($request);
 
-        $demandes = Demande::with(['logement', 'locataire'])
+        $demandes = Demande::with([
+            'logement', 
+            'locataire' => function ($query) {
+                $query->withCount(['paiements as total_paiements_payes' => function ($q) {
+                    $q->where('statut', 'payé');
+                }]);
+            }
+        ])
             ->where('proprietaire_id', $proprietaireId)
             ->orderByDesc('date_demande')
             ->get();

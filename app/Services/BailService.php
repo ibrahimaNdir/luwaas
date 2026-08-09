@@ -107,6 +107,15 @@ class BailService
                 'date_bail_cree' => now(),
             ]);
 
+            $proprietaire = \App\Models\Proprietaire::find($demande->proprietaire_id);
+            if ($proprietaire && $proprietaire->subscription_status === 'free_trial') {
+                $proprietaire->update([
+                    'plan' => 'starter',
+                    'subscription_status' => 'pending_payment',
+                ]);
+                Log::info("🔄 Bascule automatique du bailleur {$proprietaire->id} vers le plan starter.");
+            }
+
             $this->demandeService->refuserAutomatiquementApresBail(
                 $demande->logement_id,
                 $demande->id

@@ -165,7 +165,8 @@ class LogementController extends Controller
         ]);
 
         $logement = $this->logementService->updateStatus(
-            $id,
+            (int) $proprieteId,
+            (int) $id,
             $request->statut_publication,
             $this->proprietaireId($request)
         );

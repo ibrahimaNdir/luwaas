@@ -13,6 +13,8 @@ class Plan extends Model
         'name',
         'tier',
         'billing_cycle',
+        'price_base_xof',
+        'price_per_property_xof',
         'price_xof',
         'publications_max',
         'features',
@@ -21,9 +23,11 @@ class Plan extends Model
 
     protected $casts = [
         'features'            => 'array',
-        'is_active'           => 'boolean',
-        'price_xof'           => 'decimal:2',
-        'publications_max'    => 'integer',
+        'is_active'              => 'boolean',
+        'price_base_xof'         => 'decimal:2',
+        'price_per_property_xof' => 'decimal:2',
+        'price_xof'              => 'decimal:2',
+        'publications_max'       => 'integer',
     ];
 
     // ─── Relations ───────────────────────────────────────────

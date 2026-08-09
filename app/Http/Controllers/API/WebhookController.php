@@ -19,11 +19,6 @@ class WebhookController extends Controller
     {
         Log::info("📩 IPN PayDunya reçu", $request->all());
 
-        if (!$this->webhookService->verifierSignature($request)) {
-            Log::warning("⚠️ Signature PayDunya invalide");
-            return response()->json(['error' => 'Invalid signature'], 401);
-        }
-
         $result = $this->webhookService->handle($request);
 
         $status = $result['status'] ?? 200;

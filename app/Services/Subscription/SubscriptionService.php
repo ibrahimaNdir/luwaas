@@ -2,17 +2,43 @@
 
 namespace App\Services\Subscription;
 
+use App\Contracts\PaymentGatewayInterface;
 use App\Models\Plan;
 use App\Models\Proprietaire;
 use App\Models\Subscription;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class SubscriptionService
 {
+    // ... (ton constructeur et méthodes existantes) ...
+
+    /**
+     * Génère et stocke la facture PDF pour un abonnement
+     */
+    public function genererEtStockerFactureAbonnement(Subscription $subscription): string
+    {
+        // Chargement de la vue (on passe l'objet subscription pour les infos)
+        $pdf = Pdf::loadView('pdf.facture_abonnement', ['subscription' => $subscription]);
+        
+        $path = 'factures/abonnements/facture_' . $subscription->id . '.pdf';
+        
+        Storage::disk('public')->put($path, $pdf->output());
+        
+        // On stocke le chemin dans le modèle si tu as une colonne pour cela
+        // $subscription->update(['facture_path' => $path]);
+        
+        return $path;
+    }
+    public function __construct(
+        protected PaymentGatewayInterface $gateway
+    ) {}
+
     // ─────────────────────────────────────────
-    // 1. INITIER UN PAIEMENT
+    // 1. INITIER UN PAIEMENT D'ABONNEMENT
     // ─────────────────────────────────────────
 
     public function initiatePayment(
@@ -29,26 +55,51 @@ class SubscriptionService
             'plan_id'         => $plan->id,
             'status'          => 'pending',
             'amount'          => $plan->price_xof,
-            'payment_gateway' => 'paydunya',
+            'payment_gateway' => config('luwaas.active_gateway', 'paydunya'),
             'payment_method'  => $operateur,
             'starts_at'       => null,
             'ends_at'         => null,
         ]);
 
-        Log::info("💳 Subscription créée", [
+        Log::info('💳 Subscription créée', [
             'id'        => $subscription->id,
             'plan'      => $plan->name,
             'operateur' => $operateur,
         ]);
 
-        $paydunyaData = $this->initierPaydunya($subscription, $plan, $telephone, $ip);
+        // ── Créer la transaction locale
+        $transaction = Transaction::create([
+            'type'             => 'subscription_payment',
+            'subscription_id'  => $subscription->id,
+            'mode_paiement'    => $operateur,
+            'montant'          => $subscription->amount,
+            'statut'           => 'en_attente',
+            'reference'        => 'SUB-' . $subscription->id . '-' . strtoupper(substr(uniqid(), -6)),
+            'telephone_payeur' => $telephone,
+            'ip_address'       => $ip,
+            'date_transaction' => now(),
+            'expire_at'        => now()->addMinutes(30),
+        ]);
 
-        $subscription->update(['paydunya_token' => $paydunyaData['token']]);
+        // ── Appel au gateway (plus aucun code PayDunya ici)
+        $paymentData = $this->gateway->initiateCheckout($transaction, [
+            'description'   => "Luwaas – Abonnement {$plan->name} ({$plan->billing_cycle})",
+            'store_tagline' => 'Gestion locative SaaS',
+            'cancel_url'    => config('app.url') . '/abonnement/annule',
+            'return_url'    => config('app.url') . '/abonnement/succes',
+            'callback_url'  => config('app.url') . '/api/webhook/payment',
+            'custom_data'   => [
+                'subscription_id' => $subscription->id,
+                'proprietaire_id' => $subscription->proprietaire_id,
+            ],
+        ]);
+
+        $transaction->update(['lien_paiement' => $paymentData['payment_url'] ?? null]);
 
         return [
             'subscription_id' => $subscription->id,
-            'payment_url'     => $paydunyaData['payment_url'],
-            'token'           => $paydunyaData['token'],
+            'payment_url'     => $paymentData['payment_url'],
+            'token'           => $paymentData['token'],
         ];
     }
 
@@ -81,58 +132,17 @@ class SubscriptionService
     }
 
     // ─────────────────────────────────────────
-    // 3. APPEL PAYDUNYA (privé)
+    // 3. CALCULER LE PRIX (dynamic pricing)
     // ─────────────────────────────────────────
 
-    private function initierPaydunya(
-        Subscription $subscription,
-        Plan $plan,
-        ?string $telephone,
-        string $ip
-    ): array {
-        $mode    = config('services.paydunya.mode', 'test');
-        $baseUrl = $mode === 'live'
-            ? 'https://app.paydunya.com/api/v1'
-            : 'https://app.paydunya.com/sandbox-api/v1';
-
-        $response = Http::withHeaders([
-            'PAYDUNYA-MASTER-KEY'  => config('services.paydunya.master_key'),
-            'PAYDUNYA-PRIVATE-KEY' => config('services.paydunya.private_key'),
-            'PAYDUNYA-TOKEN'       => config('services.paydunya.token'),
-            'Content-Type'         => 'application/json',
-        ])->post("{$baseUrl}/checkout-invoice/create", [
-            'invoice' => [
-                'total_amount' => (int) $subscription->amount,
-                'description'  => "Luwaas – Abonnement {$plan->name} ({$plan->billing_cycle})",
-            ],
-            'store' => [
-                'name'    => 'Luwaas',
-                'tagline' => 'Gestion locative SaaS',
-            ],
-            'actions' => [
-                'cancel_url'   => config('app.url') . '/abonnement/annule',
-                'return_url'   => config('app.url') . '/abonnement/succes',
-                'callback_url' => config('app.url') . '/api/webhook/subscription/paydunya',
-            ],
-            'custom_data' => [
-                'subscription_id' => $subscription->id,
-                'proprietaire_id' => $subscription->proprietaire_id,
-                'reference'       => 'SUB-' . $subscription->id . '-' . strtoupper(substr(uniqid(), -6)),
-            ],
-        ]);
-
-        if (!$response->successful() || ($response['response_code'] ?? null) !== '00') {
-            Log::error("❌ Erreur PayDunya (abonnement)", $response->json());
-            throw new \Exception("Erreur PayDunya : " . ($response['response_text'] ?? 'Inconnue'));
+    public function calculatePrice(Proprietaire $proprietaire, Plan $plan): float
+    {
+        if ($plan->price_xof !== null) {
+            return (float) $plan->price_xof;
         }
 
-        $token = $response->json('token');
+        $nbBiens = $proprietaire->logements()->count();
 
-        Log::info("✅ PayDunya OK (abonnement)", ['token' => $token]);
-
-        return [
-            'token'       => $token,
-            'payment_url' => $response->json('response_text'),
-        ];
+        return ($plan->price_base_xof ?? 0) + ($nbBiens * ($plan->price_per_property_xof ?? 0));
     }
 }

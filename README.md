@@ -1,139 +1,171 @@
 # Luwaas — Plateforme SaaS de Gestion Locative
 
-> Digitalisation de la gestion des locations immobilières au Sénégal
+> Digitalisation de la gestion des locations immobilieres au Senegal
 
 ---
 
-## Présentation
+## Presentation
 
-Luwaas est une plateforme SaaS de gestion locative conçue pour le marché sénégalais.
-Elle permet aux bailleurs de gérer leurs propriétés, logements, baux, locataires et paiements depuis une interface unique, avec un système de publication de logements conditionné à un abonnement.
+Luwaas est une plateforme SaaS de gestion locative concue pour le marche senegalais.
+Elle permet aux bailleurs de gerer leurs proprietes, logements, baux, locataires et paiements depuis une interface unique.
 
-L'API REST est construite avec Laravel et sécurisée via Laravel Sanctum. Elle est consommée par un frontend web et une application mobile Flutter (projet séparé).
+Contrairement aux modeles classiques bases sur des quotas de publication, Luwaas laisse la publication **100% libre et illimitee**. Le modele economique repose sur une **commission percue uniquement lorsqu'un loyer est effectivement encaisse via la plateforme**, complete par un abonnement optionnel (Pro) pour des fonctionnalites avancees.
+
+L'API REST est construite avec Laravel et securisee via Laravel Sanctum. Elle est consommee par un frontend web et une application mobile Flutter (projet separe).
 
 ---
 
-## Rôles & logique multi-tenant
+## Roles & logique multi-tenant
 
-| Rôle | Description |
+| Role | Description |
 |------|-------------|
-| **Locataire** | Recherche de logements publiés, envoi de demandes de location, consultation de ses baux et paiements |
-| **Bailleur (Propriétaire)** | Gestion illimitée de ses propriétés et logements (en interne), publication conditionnée au plan souscrit |
-| **Admin plateforme** | Supervision globale, gestion des bailleurs, statistiques SaaS (MRR, taux de conversion) |
+| **Locataire** | Recherche de logements publies, envoi de demandes de location, consultation de ses baux et paiements |
+| **Bailleur (Proprietaire)** | Gestion et publication illimitees de ses proprietes et logements, paiement de loyers en ligne ou hors ligne |
+| **Admin plateforme** | Supervision globale, gestion des bailleurs, statistiques SaaS (revenus, taux d'utilisation des paiements en ligne) |
 
-Chaque bailleur dispose de son propre espace de données isolé (propriétés, logements, locataires, baux).
-
----
-
-## Expérience Bailleur — Flux utilisateur
-
-Après inscription, le bailleur accède **immédiatement et librement** à son espace de gestion :
-
-```
-[Inscription + Vérification OTP]
-           ↓
-    [Dashboard bailleur]
-           ↓
-✅ Ajouter propriétés       → ILLIMITÉ (aucune restriction)
-✅ Ajouter logements liés   → ILLIMITÉ (aucune restriction)
-           ↓
-⚠️  Publier un logement     → LIMITÉ selon le plan actif
-```
-
-La **gestion interne** (propriétés, logements, locataires, baux) est toujours libre. Seule la **publication d'annonces** visible par les locataires est régulée par le plan. Cette approche permet au bailleur de s'installer confortablement dans la plateforme avant de s'engager financièrement.
+Chaque bailleur dispose de son propre espace de donnees isole (proprietes, logements, locataires, baux).
 
 ---
 
-## Module Abonnement SaaS
+## Experience Bailleur — Flux utilisateur
 
-Luwaas adopte un modèle **Freemium à quotas de publication**, adapté au marché sénégalais.
+Apres inscription, le bailleur accede **immediatement et sans restriction** a son espace de gestion :
 
-### Philosophie des plans
+```
+[Inscription + Verification OTP]
+           |
+    [Dashboard bailleur - plan Starter actif d'office]
+           |
+Ajouter proprietes        -> ILLIMITE, gratuit
+Ajouter logements lies    -> ILLIMITE, gratuit
+Publier un logement       -> ILLIMITE, gratuit, sans limite de duree
+           |
+Encaisser un loyer
+   -> Via Luwaas (agregateur)   : commission percue
+   -> Hors ligne (cash / Wave)  : paiement manuel, 0% commission
+```
 
-Le bailleur s'inscrit sans carte bancaire, utilise la plateforme librement, et rencontre la limite seulement lorsqu'il tente de publier plus d'annonces que son plan ne l'autorise. C'est à ce moment — une fois déjà engagé dans la plateforme — qu'il choisit son plan. Ce modèle maximise l'acquisition tout en assurant une conversion naturelle.
+Il n'y a **ni periode d'essai a duree limitee, ni quota de publications**. Le bailleur ne rencontre jamais de blocage pour gerer ou publier ses biens. La monetisation se fait exclusivement au moment de l'encaissement d'un loyer via la plateforme, ou via l'abonnement Pro optionnel.
+
+---
+
+## Module Abonnement & Monetisation SaaS
+
+Luwaas adopte un modele **Commission a l'usage + Freemium sur les fonctionnalites**, adapte au marche senegalais.
+
+### Philosophie du modele
+
+Le bailleur s'inscrit sans carte bancaire, gere et publie ses biens sans aucune limite. Il n'est jamais bloque. La plateforme se remunere uniquement lorsqu'elle apporte une valeur mesurable : la securisation d'un paiement de loyer. Ce modele maximise l'adoption et la retention, tout en alignant le revenu de Luwaas sur l'usage reel du service.
+
+### Commission sur les loyers encaisses via Luwaas
+
+Pour chaque loyer paye par le locataire via l'agregateur de paiement integre a Luwaas :
+
+```
+Frais Luwaas = max(6 000 FCFA, 6% du loyer)
+```
+
+Exemples :
+
+| Montant du loyer | Commission Luwaas |
+|-------------------|--------------------|
+| 50 000 FCFA | 6 000 FCFA (plancher) |
+| 100 000 FCFA | 6 000 FCFA |
+| 300 000 FCFA | 18 000 FCFA |
+
+Cette commission n'est prelevee que sur les transactions passant reellement par l'agregateur de paiement. Aucun agregateur n'est fige a ce jour ; l'integration est concue pour rester agnostique du prestataire de paiement (PayDunya ou autre PSP local), afin de pouvoir comparer et changer de fournisseur sans impacter le modele economique.
+
+### Paiement manuel (hors ligne)
+
+Un locataire peut regler son loyer en dehors de l'application (especes, Wave direct, virement). Dans ce cas, le bailleur enregistre le paiement via le bouton **"Marquer comme paye manuellement"** :
+
+- Le loyer passe au statut "paye", les relances automatiques s'arretent.
+- Une quittance PDF est generee normalement.
+- **Aucune commission n'est prelevee** sur ce paiement, puisque l'argent n'a pas transite par l'agregateur.
+- Un message informatif est affiche pour encourager, sans contrainte, l'usage du paiement en ligne :
+  > "Ce paiement a ete regle hors ligne. Note : les paiements effectues directement via Luwaas sont 100% automatises et securisent votre comptabilite."
+
+Cette approche privilegie l'adoption et la retention plutot que l'extraction immediate de revenu sur chaque transaction.
 
 ### Plans disponibles
 
-| Plan | Prix / mois | Publications actives | Facturation annuelle |
-|------|-------------|----------------------|----------------------|
-| **Gratuit** | 0 FCFA | 1 logement publié | — |
-| **Pro** | ~8 000 FCFA | 10 logements publiés | -20% (~76 800 FCFA/an) |
-| **Agence** | ~20 000 FCFA | Illimité | -20% (~192 000 FCFA/an) |
+| Plan | Prix | Commission sur loyers Luwaas | Publication |
+|------|------|-------------------------------|--------------|
+| **Starter** | 0 FCFA/mois (par defaut) | max(6 000, 6% du loyer) | Illimitee, gratuite |
+| **Pro** | 5 000 FCFA/mois ou 48 000 FCFA/an | max(6 000, 6% du loyer) | Illimitee, gratuite |
 
-> Les prix sont indicatifs et calibrés pour le marché sénégalais, basés sur la valeur perçue (temps gagné, loyers sécurisés) plutôt que sur les tarifs européens.
-
-### Ce que "publications actives" signifie
-
-- Un logement **ajouté** mais **non publié** = visible uniquement dans le dashboard du bailleur
-- Un logement **publié** = visible dans les résultats de recherche des locataires
-- La **limite s'applique au nombre de publications simultanées**, pas aux logements créés
+> Tout nouveau bailleur demarre automatiquement en plan Starter, actif sans limite de duree. Le plan Pro est une option, jamais une obligation pour publier ou encaisser des loyers.
 
 ### Feature Gating par plan
 
-| Fonctionnalité | Gratuit | Pro | Agence |
-|----------------|---------|-----|--------|
-| Propriétés & logements (gestion interne) | Illimité | Illimité | Illimité |
-| Publications actives | 1 | 10 | Illimité |
-| Photos par annonce | 3 | 10 | Illimité |
-| Durée de publication | 15 jours | 30 jours renouvelable | Permanente |
-| Mise en avant des annonces | ❌ | ❌ | ✅ |
-| Rapports financiers | ❌ | ✅ | ✅ avancés |
-| Export Excel | ❌ | ✅ | ✅ |
-| SMS automatiques (rappels loyer) | ❌ | ✅ | ✅ |
-| Co-gestionnaires | ❌ | 3 max | Illimité |
-| Support | Email | Email prioritaire | Dédié |
+| Fonctionnalite | Starter | Pro |
+|----------------|---------|-----|
+| Proprietes & logements (gestion interne) | Illimite | Illimite |
+| Publications actives | Illimite | Illimite |
+| Paiement manuel (hors ligne) | Oui | Oui |
+| Commission sur loyers via Luwaas | max(6 000, 6%) | max(6 000, 6%) |
+| Quittances PDF | Oui | Oui |
+| Mise en avant des annonces | Non | Oui |
+| Rapports financiers avances | Non | Oui |
+| Export Excel | Non | Oui |
+| SMS automatiques (rappels loyer) | Oui (basique) | Oui (avance) |
+| Support | Standard | Prioritaire |
 
 ### Fonctionnement technique
 
-- **Plan gratuit par défaut** : tout nouveau bailleur démarre sur le plan gratuit avec 1 publication active.
-- **Upgrade au bon moment** : lorsqu'il tente de publier un 2e logement, un popup d'upgrade s'affiche.
-- **Expiration automatique** : une commande Artisan (`subscriptions:expire`) vérifie chaque nuit les abonnements expirés.
-- **Paiement** : intégration PayDunya (Wave, Orange Money, Free Money, carte bancaire).
-- **Activation automatique** : l'abonnement est activé via webhook IPN PayDunya dès confirmation du paiement.
+- **Plan Starter par defaut** : a l'inscription, `plan = starter`, `subscription_status = active`. Aucune date d'expiration.
+- **Pas de blocage de publication** : la publication n'est jamais soumise a un quota ou a une periode d'essai.
+- **Expiration des abonnements Pro** : une commande Artisan (`subscriptions:expire`) verifie chaque nuit les abonnements Pro expires et retrograde automatiquement le bailleur vers le plan Starter, sans jamais suspendre son compte ni bloquer les encaissements de loyer.
+- **Paiement des loyers** : integration a un agregateur de paiement (Wave, Orange Money, carte bancaire), via une couche d'abstraction permettant de changer de prestataire sans impacter le reste de l'application.
+- **Activation automatique** : la transaction est confirmee via webhook IPN de l'agregateur.
+- **Paiement manuel** : endpoint dedie permettant au bailleur de marquer un loyer comme paye hors ligne, sans commission.
 
 ### Middlewares
 
-| Middleware | Rôle |
+| Middleware | Role |
 |-----------|------|
-| `CheckSubscription` | Vérifie qu'un abonnement actif existe avant d'accéder aux routes protégées |
-| `CheckPlanFeature` | Vérifie que la fonctionnalité ou le quota demandé est disponible dans le plan actuel |
-| `CheckPublicationQuota` | Bloque la publication si le nombre de publications actives atteint la limite du plan |
+| `CheckSubscription` | Verifie le statut de l'abonnement (Starter ou Pro) pour l'acces aux fonctionnalites premium |
+| `CheckPlanFeature` | Verifie que la fonctionnalite demandee (export, SMS avance, mise en avant, etc.) est disponible dans le plan actuel |
+
+> Le middleware historique `CheckPublicationQuota` (limite de publications) a ete supprime : la publication n'est plus restreinte par le plan.
 
 ---
 
-## Fonctionnalités détaillées
+## Fonctionnalites detaillees
 
 ### Gestion des utilisateurs
-- Inscription et connexion sécurisées avec Laravel Sanctum
-- Vérification par OTP (code 6 chiffres envoyé par email)
-- Gestion des rôles : locataire, bailleur, admin
-- Contrôle d'accès rigoureux via middlewares
+- Inscription et connexion securisees avec Laravel Sanctum
+- Verification par OTP (code 6 chiffres envoye par email)
+- Gestion des roles : locataire, bailleur, admin
+- Controle d'acces rigoureux via middlewares
 
-### Recherche de logements (côté locataire)
-- Recherche **par filtres** géographiques (région, département, commune)
+### Recherche de logements (cote locataire)
+- Recherche **par filtres** geographiques (region, departement, commune)
 - Recherche **par type** (villa, appartement, studio, chambre)
-- Recherche **géolocalisée** par proximité GPS (formule haversine)
-- Affichage uniquement des logements **disponibles et publiés** par un bailleur actif
+- Recherche **geolocalisee** par proximite GPS (formule haversine)
+- Affichage uniquement des logements **disponibles et publies**
 
 ### Demandes de location
 - Le locataire envoie une demande pour un logement (`POST /api/locataire/demandes`)
-- Le bailleur reçoit et gère les demandes (`GET /api/proprietaire/demandes`)
-- Statuts gérés : en attente, acceptée, refusée, bail créé
+- Le bailleur recoit et gere les demandes (`GET /api/proprietaire/demandes`)
+- Statuts geres : en attente, acceptee, refusee, bail cree
 - Historique complet pour chaque utilisateur
 
 ### Gestion des baux
-- Création de bail liée à une demande acceptée
-- Champs détaillés : loyer, caution, charges, durée, jour d'échéance, renouvellement automatique
-- Statuts : en attente de paiement, actif, résilié, suspendu, expiré
-- Génération PDF du contrat de bail (conforme au modèle sénégalais)
-- Paiement de signature (caution + premier loyer) généré automatiquement
+- Creation de bail liee a une demande acceptee
+- Champs detailles : loyer, caution, charges, duree, jour d'echeance, renouvellement automatique
+- Statuts : en attente de paiement, actif, resilie, suspendu, expire
+- Generation PDF du contrat de bail (conforme au modele senegalais)
+- Paiement de signature (caution + premier loyer) genere automatiquement, activable en ligne ou manuellement
 
 ### Paiements
-- Suivi des loyers mensuels (payé, en retard, partiel)
-- Intégration PayDunya (Wave, Orange Money, espèces)
-- Webhook IPN pour activation automatique des paiements
-- Historique des transactions lié à chaque bail
-- Génération de quittances PDF
+- Suivi des loyers mensuels (paye, en retard, partiel)
+- Paiement en ligne via agregateur (Wave, Orange Money, carte bancaire) avec commission Luwaas
+- **Paiement manuel** (especes, Wave direct, virement) sans commission, avec generation de quittance
+- Webhook IPN pour activation automatique des paiements en ligne
+- Historique des transactions lie a chaque bail (paiements en ligne et manuels distingues)
+- Relances automatiques de loyer (`SendRentReminders`) et alertes de retard (`RappelRetardsPaiement`), desactivees automatiquement lorsqu'un paiement manuel est enregistre
+- Generation de quittances PDF
 
 ---
 
@@ -146,18 +178,18 @@ Le bailleur s'inscrit sans carte bancaire, utilise la plateforme librement, et r
 | Composant | Technologie |
 |-----------|-------------|
 | Backend | Laravel 9+, API REST, Sanctum |
-| Base de données | MySQL / PostgreSQL |
+| Base de donnees | MySQL / PostgreSQL |
 | Auth | Laravel Sanctum + OTP email |
 | PDF | barryvdh/laravel-dompdf |
-| Paiements | PayDunya (Wave, OM, Free, Carte) |
+| Paiements | Agregateur de paiement (a confirmer), integration agnostique du PSP |
 | Containerisation | Docker + docker-compose |
-| Frontend mobile | Flutter (projet séparé) |
+| Frontend mobile | Flutter (projet separe) |
 
 ---
 
 ## Installation et configuration
 
-### Prérequis
+### Prerequis
 - PHP 8.1+
 - Composer
 - MySQL ou PostgreSQL
@@ -166,27 +198,27 @@ Le bailleur s'inscrit sans carte bancaire, utilise la plateforme librement, et r
 ### Installation
 
 ```bash
-# 1. Cloner le dépôt
+# 1. Cloner le depot
 git clone https://github.com/ibrahimaNdir/luwaas.git
 cd luwaas
 
-# 2. Installer les dépendances
+# 2. Installer les dependances
 composer install
 
 # 3. Configurer l'environnement
 cp .env.example .env
-# Modifier les variables DB, mail, PayDunya, etc.
+# Modifier les variables DB, mail, agregateur de paiement, etc.
 
-# 4. Générer la clé d'application
+# 4. Generer la cle d'application
 php artisan key:generate
 
-# 5. Migrer et seeder les tables (inclut les plans d'abonnement)
+# 5. Migrer et seeder les tables (inclut les plans Starter / Pro)
 php artisan migrate --seed
 
-# 6. Créer le lien de stockage
+# 6. Creer le lien de stockage
 php artisan storage:link
 
-# 7. Démarrer le serveur
+# 7. Demarrer le serveur
 php artisan serve
 ```
 
@@ -197,9 +229,7 @@ docker-compose up -d
 docker-compose exec app php artisan migrate --seed
 ```
 
-### Scheduler (abonnements & quotas)
-
-Pour que les abonnements et les publications expirent automatiquement, ajouter au cron du serveur :
+### Scheduler (expiration des abonnements Pro & relances)
 
 ```bash
 * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
@@ -207,64 +237,66 @@ Pour que les abonnements et les publications expirent automatiquement, ajouter a
 
 ---
 
-## Endpoints API clés
+## Endpoints API cles
 
 ### Authentification (publique)
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
+| Methode | Endpoint | Description |
+|---------|----------|--------------|
 | POST | `/api/auth/register` | Inscription (locataire ou bailleur) |
 | POST | `/api/auth/login` | Connexion |
-| POST | `/api/auth/verify-otp` | Vérification OTP |
+| POST | `/api/auth/verify-otp` | Verification OTP |
 | POST | `/api/auth/resend-otp` | Renvoyer l'OTP |
-| POST | `/api/auth/logout` | Déconnexion |
+| POST | `/api/auth/logout` | Deconnexion |
 
 ### Abonnement (auth requis)
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/api/plans` | Liste des plans disponibles |
+| Methode | Endpoint | Description |
+|---------|----------|--------------|
+| GET | `/api/plans` | Liste des plans disponibles (Starter, Pro) |
 | GET | `/api/subscription/status` | Statut et plan actif du bailleur |
-| POST | `/api/subscription/subscribe` | Souscrire à un plan (déclenche paiement PayDunya) |
-| POST | `/api/subscription/cancel` | Annuler l'abonnement |
+| POST | `/api/subscription/subscribe` | Souscrire au plan Pro (declenche paiement) |
+| POST | `/api/subscription/cancel` | Annuler l'abonnement Pro (retour automatique a Starter) |
 
-### Propriétés & Logements (auth requis — gestion interne libre)
+### Proprietes & Logements (auth requis — gestion et publication libres)
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/api/proprietes` | Liste des propriétés du bailleur |
-| POST | `/api/proprietes` | Créer une propriété |
-| GET | `/api/proprietes/{id}/logements` | Logements d'une propriété |
-| POST | `/api/proprietes/{id}/logements` | Créer un logement (illimité) |
+| Methode | Endpoint | Description |
+|---------|----------|--------------|
+| GET | `/api/proprietes` | Liste des proprietes du bailleur |
+| POST | `/api/proprietes` | Creer une propriete |
+| GET | `/api/proprietes/{id}/logements` | Logements d'une propriete |
+| POST | `/api/proprietes/{id}/logements` | Creer un logement (illimite) |
 | PUT | `/api/logements/{id}` | Modifier un logement |
 | DELETE | `/api/logements/{id}` | Supprimer un logement |
-
-### Publication (auth + quota vérifié par `CheckPublicationQuota`)
-
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/logements/{id}/publier` | Publier un logement (quota vérifié) |
+| POST | `/api/logements/{id}/publier` | Publier un logement (illimite, gratuit) |
 | POST | `/api/logements/{id}/depublier` | Retirer un logement de la publication |
 | GET | `/api/logements/search` | Recherche publique par filtres |
-| GET | `/api/logements/nearby` | Recherche géolocalisée |
+| GET | `/api/logements/nearby` | Recherche geolocalisee |
 
 ### Baux (auth requis)
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/baux` | Créer un bail depuis une demande acceptée |
+| Methode | Endpoint | Description |
+|---------|----------|--------------|
+| POST | `/api/baux` | Creer un bail depuis une demande acceptee |
 | GET | `/api/proprietaire/baux` | Baux du bailleur |
 | GET | `/api/locataire/baux` | Baux du locataire |
-| GET | `/api/baux/{id}` | Détail d'un bail |
-| GET | `/api/baux/{id}/pdf` | Télécharger le contrat PDF |
+| GET | `/api/baux/{id}` | Detail d'un bail |
+| GET | `/api/baux/{id}/pdf` | Telecharger le contrat PDF |
+
+### Paiements
+
+| Methode | Endpoint | Description |
+|---------|----------|--------------|
+| POST | `/api/paiements/{id}/mark-as-paid-manually` | Marquer un loyer/signature comme paye hors ligne (0% commission) |
+| GET | `/api/paiements/{id}/quittance` | Generer/telecharger la quittance PDF |
 
 ### Demandes
 
-| Méthode | Endpoint | Description |
-|---------|----------|-------------|
-| POST | `/api/locataire/demandes` | Locataire : créer une demande |
+| Methode | Endpoint | Description |
+|---------|----------|--------------|
+| POST | `/api/locataire/demandes` | Locataire : creer une demande |
 | GET | `/api/locataire/demandes` | Locataire : historique demandes |
-| GET | `/api/proprietaire/demandes` | Bailleur : demandes reçues |
+| GET | `/api/proprietaire/demandes` | Bailleur : demandes recues |
 
 ---
 
@@ -272,25 +304,26 @@ Pour que les abonnements et les publications expirent automatiquement, ajouter a
 
 ### Locataire
 ```
-Inscription → OTP → Login → Recherche logement publié
-→ Demande → Attente → Bail créé → Paiement signature
-→ Bail actif → Loyers mensuels → Quittances PDF
+Inscription -> OTP -> Login -> Recherche logement publie
+-> Demande -> Attente -> Bail cree -> Paiement signature (en ligne ou manuel)
+-> Bail actif -> Loyers mensuels (en ligne ou manuel) -> Quittances PDF
 ```
 
 ### Bailleur
 ```
-Inscription → OTP → Dashboard libre
-→ Ajoute propriétés & logements (illimité, sans friction)
-→ Tente de publier → Quota plan gratuit (1 publication)
-→ Atteint la limite → Choix plan Pro ou Agence
-→ Paiement PayDunya (Wave / Orange Money) → Accès étendu
-→ Réception demandes → Création baux → Suivi paiements
+Inscription -> OTP -> Dashboard actif immediatement (plan Starter)
+-> Ajoute et publie proprietes & logements (illimite, gratuit, sans friction)
+-> Recoit des demandes -> Cree des baux
+-> Encaisse les loyers :
+     - via Luwaas (agregateur)  -> commission max(6000, 6%)
+     - hors ligne (cash/Wave)   -> paiement manuel, 0% commission, quittance generee
+-> Optionnel : passe en Pro pour exports, rapports, SMS avances, mise en avant
 ```
 
 ### Admin
 ```
-Login → Dashboard MRR → Gestion bailleurs
-→ Gestion plans → Statistiques globales
+Login -> Dashboard revenus (commissions + abonnements Pro) -> Gestion bailleurs
+-> Suivi taux de paiements en ligne vs manuels -> Statistiques globales
 ```
 
 ---
@@ -312,6 +345,6 @@ Pour toute question ou suggestion, ouvrir une issue.
 
 ## Contact
 
-**Développeur principal** : Ibrahima Ndir
-**Email** : ibrahimandir2410@gmail.com
+**Developpeur principal** : Ibrahima Ndir
+**Email** : [ibrahimandir2410@gmail.com](mailto:ibrahimandir2410@gmail.com)
 **GitHub** : [@ibrahimaNdir](https://github.com/ibrahimaNdir)
