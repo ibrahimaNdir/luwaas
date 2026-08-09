@@ -18,3 +18,5 @@ yarn-error.log
 /.vscode
 ngrok.exe
 public/photos_logements/
+
+cloudflared.exe
