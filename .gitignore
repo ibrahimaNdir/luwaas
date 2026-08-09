@@ -1,4 +1,4 @@
-/.phpunit.cache
+﻿/.phpunit.cache
 /node_modules
 /public/build
 /public/hot
@@ -19,4 +19,25 @@ yarn-error.log
 ngrok.exe
 public/photos_logements/
 
+# === NOUVEAUX AJOUTS ===
 cloudflared.exe
+*.exe
+.phpunit.result.cache
+tmp_probe.txt
+*.cache
+*.log
+storage/app/public/
+storage/app/private/
+storage/framework/
+storage/logs/
+database/data/
+.fleet/
+.idea/
+.vscode/
+*.code-workspace
+*.sqlite
+*.sqlite3
+.env.*.local
+*.local
+.DS_Store
+Thumbs.db
