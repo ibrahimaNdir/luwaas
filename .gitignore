@@ -41,3 +41,8 @@ database/data/
 *.local
 .DS_Store
 Thumbs.db
+
+AGENTS.md
+CLAUDE.md
+FRONTEND_GUIDE.md
+luwaas-*.md
