@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * Implémentation PayDunya du gateway de paiement.
  *
- * ⚠️  TOUT le code spécifique à PayDunya est isolé ici.
+ * �� ⚠��️  TOUT le code spécifique à PayDunya est isolé ici.
  *     Pour passer à un autre agrégateur (Byctorys, CinetPay, etc.) :
  *
  *     1. Créer app/Services/Gateways/ByctorysGateway.php
@@ -20,13 +20,13 @@ use Illuminate\Support\Facades\Log;
  *     3. Dans AppServiceProvider, changer UNE SEULE LIGNE :
  *          $this->app->bind(PaymentGatewayInterface::class, ByctorysGateway::class);
  *
- * Aucune autre modification n'est nécessaire. ✅
+ * Aucune autre modification n'est nécessaire. � ✅
  */
 class PaydunyaGateway implements PaymentGatewayInterface
 {
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�══�═�═�═�═
     // CONFIGURATION
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     private function baseUrl(): string
     {
@@ -46,9 +46,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
         ];
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // INITIER UN PAIEMENT (checkout invoice)
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function initiateCheckout(Transaction $transaction, array $options): array
     {
@@ -71,7 +71,7 @@ class PaydunyaGateway implements PaymentGatewayInterface
             ]);
 
         if (!$response->successful() || ($response['response_code'] ?? null) !== '00') {
-            Log::error('❌ PayDunya initiateCheckout failed', [
+            Log::error('��❌ PayDunya initiateCheckout failed', [
                 'transaction_id' => $transaction->id,
                 'response'       => $response->json(),
             ]);
@@ -82,9 +82,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
         $paymentUrl = $response->json('response_text'); // PayDunya retourne l'URL dans response_text
 
         // Stocker le token sur la transaction pour le matching webhook
-        $transaction->update(['paydunyatoken' => $token]);
+        $transaction->update(['gateway_token' => $token]);
 
-        Log::info('✅ PayDunya checkout créé', [
+        Log::info('��✅ PayDunya checkout créé', [
             'transaction_id' => $transaction->id,
             'token'          => $token,
         ]);
@@ -96,9 +96,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
         ];
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // REVERSEMENT BAILLEUR (PER — direct pay)
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function directPayout(string $recipient, float $amount): array
     {
@@ -110,28 +110,28 @@ class PaydunyaGateway implements PaymentGatewayInterface
 
         if (!$response->successful()) {
             $errorMessage = $response['response_text'] ?? 'Erreur inconnue';
-            Log::error("❌ PayDunya directPayout failed pour {$recipient}", [
+            Log::error("��❌ PayDunya directPayout failed pour {$recipient}", [
                 'montant'  => $amount,
                 'response' => $response->json(),
             ]);
             throw new \Exception('Échec reversement bailleur : ' . $errorMessage);
         }
 
-        Log::info("✅ PayDunya PER réussi vers {$recipient}", ['montant' => $amount]);
+        Log::info("��✅ PayDunya PER réussi vers {$recipient}", ['montant' => $amount]);
 
         return $response->json();
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // VÉRIFICATION WEBHOOK
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function verifyWebhook(Request $request): bool
     {
         $masterKey = config('services.paydunya.master_key');
 
         if (!$masterKey) {
-            Log::error('❌ Clé PayDunya manquante dans la configuration.');
+            Log::error('��❌ Clé PayDunya manquante dans la configuration.');
             return false;
         }
 
@@ -152,9 +152,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
         return false;
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // NORMALISATION PAYLOAD WEBHOOK
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     /**
      * Convertit le payload PayDunya en format standard Luwaas.
@@ -199,9 +199,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
         ];
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // TAUX PSP (lu depuis commission_rates DB)
-    // ═══════════════════════════════════════════
+    // �� ═�══�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     /**
      * Récupère le taux PSP depuis la table commission_rates.
@@ -222,7 +222,7 @@ class PaydunyaGateway implements PaymentGatewayInterface
             ->value('rate_percent');
 
         if ($rate === null) {
-            Log::warning("⚠️ Taux PSP introuvable pour l'opérateur '{$operator}', fallback à 1.5%");
+            Log::warning("��⚠��️ Taux PSP introuvable pour l'opérateur '{$operator}', fallback à 1.5%");
             return 0.0150; // fallback sécurisé
         }
 

@@ -12,12 +12,12 @@ use App\Http\Resources\ProprieteDetailResource;
 
 class PropertyController extends Controller
 {
-    // ✅ Injection de dépendances au lieu de new PropertyService()
+    // � ✅ Injection de dépendances au lieu de new PropertyService()
     public function __construct(protected PropertyService $propertyService) {}
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // CRUD
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�══�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function index()
     {
@@ -62,21 +62,29 @@ class PropertyController extends Controller
 
     public function update(ProprieteRequest $request, int $id)
     {
-        $propriete = Propriete::where('id', $id)
-            ->where('proprietaire_id', $this->proprietaireId($request))
-            ->firstOrFail();
+        $proprietaireId = $this->proprietaireId($request);
 
-        $propriete->update($request->validated());
+        $propriete = $this->propertyService->updatePropriete(
+            $id,
+            $request->validated(),
+            $proprietaireId
+        );
+
+        if (!$propriete) {
+            return response()->json([
+                'message' => 'Propriété non trouvée ou non autorisée.'
+            ], 404);
+        }
 
         return response()->json([
             'message'   => 'Propriété mise à jour avec succès.',
-            'propriete' => new ProprieteResource($propriete->fresh()),
+            'propriete' => new ProprieteResource($propriete),
         ]);
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // LISTING & RECHERCHE
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function allProperty(Request $request)
     {
@@ -108,7 +116,7 @@ class PropertyController extends Controller
         ]);
     }
 
-    
+
         public function show(Request $request, int $id)
     {
         $proprietaireId = $request->user()->proprietaire->id;
@@ -122,11 +130,11 @@ class PropertyController extends Controller
         return new ProprieteDetailResource((object)$data);
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // DASHBOARD & STATS
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�══�═�═�═�═�═�═�═�═�═�═�═
 
-    
+
 
     /*
 
@@ -151,9 +159,9 @@ class PropertyController extends Controller
 
     */
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // HELPER PRIVÉ
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     private function proprietaireId(Request $request): int
     {

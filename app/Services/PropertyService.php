@@ -9,12 +9,26 @@ use App\Models\Paiement;
 use App\Models\Propriete;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Services\GeocodingService;
 
 class PropertyService
 {
-    // ═══════════════════════════════════════════
+    /**
+     * Geocoding service instance
+     */
+    protected $geocodingService;
+
+    /**
+     * Constructor
+     */
+    public function __construct(GeocodingService $geocodingService)
+    {
+        $this->geocodingService = $geocodingService;
+    }
+
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
     // CRUD
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═��
 
     public function index()
     {
@@ -28,9 +42,49 @@ class PropertyService
 
     public function creerPropriete(array $data, int $proprietaireId): Propriete
     {
-        return Propriete::create(array_merge($data, [
+        $propriete = Propriete::create(array_merge($data, [
             'proprietaire_id' => $proprietaireId,
         ]));
+
+        // Geocode the address if provided
+        if (!empty($data['adresse'])) {
+            $this->geocodeAndUpdate($propriete, $data['adresse']);
+        }
+
+        return $propriete;
+    }
+
+    public function updatePropriete(int $id, array $data, int $proprietaireId): ?Propriete
+    {
+        $propriete = Propriete::where('id', $id)
+            ->where('proprietaire_id', $proprietaireId)
+            ->first();
+
+        if (!$propriete) {
+            return null;
+        }
+
+        $propriete->update($data);
+
+        // Geocode the address if provided and changed
+        if (!empty($data['adresse'])) {
+            $this->geocodeAndUpdate($propriete, $data['adresse']);
+        }
+
+        return $propriete->fresh();
+    }
+
+    /**
+     * Geocode an address and update the propriété coordinates
+     */
+    protected function geocodeAndUpdate(Propriete $propriete, string $address): void
+    {
+        $coordinates = $this->geocodingService->geocodeAddress($address);
+
+        if ($coordinates) {
+            $propriete->update($coordinates);
+        }
+        // If geocoding fails, we keep existing coordinates or leave as null
     }
 
     public function countByOwner(int $ownerId): int
@@ -53,7 +107,7 @@ class PropertyService
         return $query->get();
     }
 
-       public function getDetailsWithStats(int $id, int $ownerId): ?array
+    public function getDetailsWithStats(int $id, int $ownerId): ?array
     {
         $propriete = Propriete::where('id', $id)
             ->where('proprietaire_id', $ownerId)
@@ -70,7 +124,7 @@ class PropertyService
         $logementsDisponible = $logements->where('statut_occupe', 'disponible')->count();
 
         // Baux actifs
-        $bauxActifs = Bail::whereHas('logement', fn($q) => $q->where('propriete_id', $id))
+        $bauxActifs = Bail::whereHas('logement', fn($q) => $q->where('proprietaire_id', $id))
             ->where('statut', 'actif')
             ->count();
 
@@ -93,9 +147,9 @@ class PropertyService
 
 /*
 
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═��═���═
     // DASHBOARD
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
 
     public function dashboard(int $ownerId): array
     {
@@ -113,7 +167,7 @@ class PropertyService
             ->first();
 
         $demandesEnAttente = Demande::whereHas('logement.propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
-            ->where('status', 'en_attente') // ✅ 'status' cohérent avec le reste du code
+            ->where('status', 'en_attente') // ��� � � ✅ 'status' cohérent avec le reste du code
             ->count();
 
         $bailsActifs = Bail::whereHas('logement.propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
@@ -123,7 +177,7 @@ class PropertyService
         $basePaiements = fn() => Paiement::whereHas('bail.logement.propriete', fn($q) => $q->where('proprietaire_id', $ownerId));
 
         $revenusMois = $basePaiements()
-            ->where('statut', 'payé') // ✅ accent cohérent
+            ->where('statut', 'payé') // ��� � � ✅ accent cohérent
             ->whereBetween('date_paiement', [$debutMois, $finMois])
             ->sum('montant');
 
@@ -155,15 +209,15 @@ class PropertyService
         ];
     }
 
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
     // HISTORIQUE & STATS
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
 
     public function historique6Mois(int $ownerId): array
     {
         $debut = Carbon::now()->subMonths(5)->startOfMonth();
 
-        // ✅ 1 requête avec GROUP BY au lieu de 6 requêtes en boucle
+        // ��� � � ✅ 1 requête avec GROUP BY au lieu de 6 requêtes en boucle
         $revenus = Paiement::whereHas('bail.logement.propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
             ->where('statut', 'payé')
             ->where('date_paiement', '>=', $debut)
@@ -211,8 +265,4 @@ class PropertyService
 
 */
 
-
-
-
-    
 }

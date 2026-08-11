@@ -46,3 +46,12 @@ AGENTS.md
 CLAUDE.md
 FRONTEND_GUIDE.md
 luwaas-*.md
+
+test_*.php
+debug_*.php
+address_test.php
+ssl_test.php
+tinker_script.txt
+*.txt
+tmp_*.php
+test_*.log

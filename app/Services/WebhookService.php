@@ -20,16 +20,16 @@ class WebhookService
         protected CommissionService        $commissionService
     ) {}
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // HANDLER PRINCIPAL
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function handle(Request $request): array
     {
         try {
             // ── Vérification signature (délégué au gateway)
             if (!$this->gateway->verifyWebhook($request)) {
-                Log::warning('❌ Signature webhook invalide', ['ip' => $request->ip()]);
+                Log::warning('��❌ Signature webhook invalide', ['ip' => $request->ip()]);
                 return ['error' => 'Invalid signature', 'status' => 403];
             }
 
@@ -42,18 +42,18 @@ class WebhookService
             $transactionRef = $payload['transaction_ref'];
 
             if (!$token) {
-                Log::error('❌ Token manquant dans le webhook', ['payload' => $request->all()]);
+                Log::error('��❌ Token manquant dans le webhook', ['payload' => $request->all()]);
                 return ['error' => 'Missing token', 'status' => 400];
             }
 
             if (!$statut) {
-                Log::error('❌ Statut manquant dans le webhook', ['token' => $token]);
+                Log::error('��❌ Statut manquant dans le webhook', ['token' => $token]);
                 return ['error' => 'Missing status', 'status' => 400];
             }
 
             // ── Retrouver la transaction locale via le token gateway
             $transaction = Transaction::query()
-                ->where('paydunyatoken', $token)
+                ->where('gateway_token', $token)
                 ->with([
                     'paiement.bail.logement.propriete.proprietaire',
                     'subscription.plan',
@@ -62,19 +62,19 @@ class WebhookService
                 ->first();
 
             if (!$transaction) {
-                Log::error("❌ Transaction introuvable pour token {$token}");
+                Log::error("��❌ Transaction introuvable pour token {$token}");
                 return ['error' => 'Transaction not found', 'status' => 404];
             }
 
             // ── Idempotence : déjà traitée ?
             if ($transaction->statut !== 'en_attente') {
-                Log::info("⏭️ Transaction {$transaction->id} déjà traitée", ['statut' => $transaction->statut]);
+                Log::info("��⏭��️ Transaction {$transaction->id} déjà traitée", ['statut' => $transaction->statut]);
                 return ['success' => true, 'message' => 'Already processed', 'status' => 200];
             }
 
             // ── Vérification du montant si fourni
             if ($montantRecu !== null && !$this->montantsCorrespondent($transaction->montant, $montantRecu)) {
-                Log::error("❌ Montant incorrect pour transaction {$transaction->id}", [
+                Log::error("��❌ Montant incorrect pour transaction {$transaction->id}", [
                     'attendu' => $transaction->montant,
                     'recu'    => $montantRecu,
                 ]);
@@ -89,7 +89,7 @@ class WebhookService
             };
 
         } catch (\Throwable $e) {
-            Log::error('❌ Erreur inattendue dans WebhookService', [
+            Log::error('��❌ Erreur inattendue dans WebhookService', [
                 'message' => $e->getMessage(),
                 'trace'   => $e->getTraceAsString(),
             ]);
@@ -97,16 +97,16 @@ class WebhookService
         }
     }
 
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═��
     // HANDLER LOYER
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═��
 
     private function handlePayment(Transaction $transaction, string $statut): array
     {
         $paiement = $transaction->paiement;
 
         if (!$paiement) {
-            Log::error("❌ Paiement introuvable pour transaction {$transaction->id}");
+            Log::error("��❌ Paiement introuvable pour transaction {$transaction->id}");
             return ['error' => 'Paiement not found', 'status' => 404];
         }
 
@@ -176,7 +176,7 @@ class WebhookService
                         try {
                             app(\App\Services\ScoreLocataireService::class)->mettreAJourScore($locataire, $paiement);
                         } catch (\Exception $e) {
-                            Log::error('⚠️ Mise à jour score locataire échouée (loyer quand même validé)', [
+                            Log::error('��⚠��️ Mise à jour score locataire échouée (loyer quand même validé)', [
                                 'paiement_id'  => $paiement->id,
                                 'locataire_id' => $locataire->id,
                                 'erreur'       => $e->getMessage(),
@@ -197,7 +197,7 @@ class WebhookService
                                 $transaction
                             );
                         } catch (\Exception $e) {
-                            Log::error('⚠️ Reversement bailleur échoué (loyer quand même validé)', [
+                            Log::error('��⚠��️ Reversement bailleur échoué (loyer quand même validé)', [
                                 'paiement_id'    => $paiement->id,
                                 'transaction_id' => $transaction->id,
                                 'erreur'         => $e->getMessage(),
@@ -206,28 +206,28 @@ class WebhookService
                     }
                 });
 
-                Log::info('✅ Paiement loyer validé', ['transaction_id' => $transaction->id]);
+                Log::info('��✅ Paiement loyer validé', ['transaction_id' => $transaction->id]);
                 return ['success' => true, 'message' => 'Paiement validé', 'status' => 200];
 
             case 'cancelled':
             case 'failed':
                 $transaction->update(['statut' => 'rejete']);
-                Log::warning('⚠️ Paiement loyer rejeté', ['transaction_id' => $transaction->id]);
+                Log::warning('��⚠��️ Paiement loyer rejeté', ['transaction_id' => $transaction->id]);
                 return ['success' => true, 'message' => 'Paiement annulé', 'status' => 200];
 
             case 'pending':
-                Log::info('⏳ Paiement loyer en attente', ['transaction_id' => $transaction->id]);
+                Log::info('��⏳ Paiement loyer en attente', ['transaction_id' => $transaction->id]);
                 return ['success' => true, 'message' => 'Payment pending', 'status' => 200];
 
             default:
-                Log::warning("⚠️ Statut inconnu pour paiement loyer : {$statut}", ['transaction_id' => $transaction->id]);
+                Log::warning("��⚠��️ Statut inconnu pour paiement loyer : {$statut}", ['transaction_id' => $transaction->id]);
                 return ['success' => true, 'message' => 'Unknown status', 'status' => 200];
         }
     }
 
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═�═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═��
     // HANDLER ABONNEMENT
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═��
 
     private function handleSubscription(Transaction $transaction, string $statut, string $transactionRef): array
     {
@@ -262,7 +262,7 @@ class WebhookService
                     ]);
                 });
 
-                Log::info('✅ Abonnement activé', [
+                Log::info('��✅ Abonnement activé', [
                     'subscription_id' => $subscription->id,
                     'plan'            => $subscription->plan->tier,
                 ]);
@@ -274,22 +274,22 @@ class WebhookService
                     $transaction->update(['statut' => 'rejete']);
                     $subscription->update(['status' => 'failed']);
                 });
-                Log::warning('⚠️ Paiement abonnement annulé', ['transaction_id' => $transaction->id]);
+                Log::warning('��⚠��️ Paiement abonnement annulé', ['transaction_id' => $transaction->id]);
                 return ['success' => true, 'message' => 'Paiement annulé', 'status' => 200];
 
             case 'pending':
-                Log::info('⏳ Paiement abonnement en attente', ['transaction_id' => $transaction->id]);
+                Log::info('��⏳ Paiement abonnement en attente', ['transaction_id' => $transaction->id]);
                 return ['success' => true, 'message' => 'Payment pending', 'status' => 200];
 
             default:
-                Log::warning("⚠️ Statut inconnu pour abonnement : {$statut}", ['transaction_id' => $transaction->id]);
+                Log::warning("��⚠��️ Statut inconnu pour abonnement : {$statut}", ['transaction_id' => $transaction->id]);
                 return ['success' => true, 'message' => 'Unknown status', 'status' => 200];
+            }
         }
-    }
 
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═��
     // HELPERS
-    // ═══════════════════════════════════════════
+    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═��
 
     private function montantsCorrespondent(float $attendu, float $recu): bool
     {

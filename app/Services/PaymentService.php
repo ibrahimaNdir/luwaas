@@ -8,7 +8,6 @@ use App\Models\Plan;
 use App\Models\Proprietaire;
 use App\Models\Payout;
 use App\Models\Subscription;
-use App\Models\Transaction;
 use Illuminate\Support\Facades\Log;
 
 class PaymentService
@@ -18,9 +17,9 @@ class PaymentService
         protected CommissionService $commissionService
     ) {}
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // PLANS
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function getPlans(): \Illuminate\Database\Eloquent\Collection
     {
@@ -29,9 +28,9 @@ class PaymentService
             ->get();
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // VALIDATION
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function validerInitiationLoyer(Paiement $paiement, int $locataireId): ?array
     {
@@ -56,7 +55,8 @@ class PaymentService
                     'id'            => $enCours->id,
                     'reference'     => $enCours->reference,
                     'montant'       => $enCours->montant,
-                    'lien_paiement' => $enCours->lien_paiement,
+                    'lien_paiement' => $enCours->payment_url,
+                    'gatewayToken'  => $enCours->gateway_token,
                 ],
                 'status' => 422,
             ];
@@ -84,7 +84,8 @@ class PaymentService
                     'id'            => $enCours->id,
                     'reference'     => $enCours->reference,
                     'montant'       => $enCours->montant,
-                    'lien_paiement' => $enCours->lien_paiement,
+                    'lien_paiement' => $enCours->payment_url,
+                    'gatewayToken'  => $enCours->gateway_token,
                 ],
                 'status' => 422,
             ];
@@ -93,9 +94,9 @@ class PaymentService
         return null;
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // LOYER
-    // ═══════════════════════════════════════════
+    //� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function initierLoyer(Paiement $paiement, string $operateur, ?string $telephone, string $ip): array
     {
@@ -126,15 +127,15 @@ class PaymentService
             throw $e;
         }
 
-        $transaction->update(['lien_paiement' => $paymentData['payment_url'] ?? null]);
+        $transaction->update(['payment_url' => $paymentData['payment_url'] ?? null]);
         $transaction->refresh();
 
         return [$transaction, $paymentData];
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // ABONNEMENT
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     public function creerSubscription(Proprietaire $proprietaire, int $planId, string $operateur): Subscription
     {
@@ -169,7 +170,7 @@ class PaymentService
             'expire_at'        => now()->addMinutes(30),
         ]);
 
-        Log::info('💳 Transaction abonnement créée', ['id' => $transaction->id]);
+        Log::info('���💳 Transaction abonnement créée', ['id' => $transaction->id']);
 
         try {
             $paymentData = $this->gateway->initiateCheckout($transaction, [
@@ -185,7 +186,7 @@ class PaymentService
             throw $e;
         }
 
-        $transaction->update(['lien_paiement' => $paymentData['payment_url'] ?? null]);
+        $transaction->update(['payment_url' => $paymentData['payment_url'] ?? null]);
         $transaction->refresh();
 
         return [$transaction, $paymentData];
@@ -211,7 +212,7 @@ class PaymentService
             'cancelled_at'        => now(),
         ]);
 
-        Log::info('🚫 Abonnement annulé', [
+        Log::info('���🚫 Abonnement annulé', [
             'subscription_id' => $subscription->id,
             'proprietaire_id' => $proprietaire->id,
         ]);
@@ -233,9 +234,9 @@ class PaymentService
         return $this->initierAbonnement($subscription, $operateur, $telephone, $ip);
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // REVERSEMENT BAILLEUR
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     /**
      * Reverse le montant NET au bailleur (loyer - commission Luwaas).
@@ -255,7 +256,7 @@ class PaymentService
         $fraisPsp  = $montantBrut * $pspRate;
         $marge     = $fraisLuwaas - $fraisPsp;
 
-        Log::info('📊 Répartition financière loyer', [
+        Log::info('���📊 Répartition financière loyer', [
             'montant_brut'             => $montantBrut,
             'frais_luwaas'             => $fraisLuwaas,
             'montant_net_bailleur'     => $montantNet,
@@ -288,13 +289,14 @@ class PaymentService
                 'statut' => 'failed',
                 'erreur' => $e->getMessage(),
             ]);
+
             throw $e;
         }
     }
 
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
     // HELPERS PRIVÉS
-    // ═══════════════════════════════════════════
+    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
 
     private function genererReference(string $prefix, int $id1, int $id2): string
     {
