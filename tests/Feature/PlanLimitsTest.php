@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Logement;
 use App\Models\Proprietaire;
 use App\Models\Propriete;
 use App\Models\User;
@@ -20,12 +19,20 @@ class PlanLimitsTest extends TestCase
 
         // Créer les plans nécessaires pour les tests (reproduit le PlanSeeder)
         Plan::create([
-            'slug'             => 'free',
-            'name'             => 'Gratuit',
-            'tier'             => 'free',
-            'publications_max' => 1,
+            'slug'             => 'starter',
+            'name'             => 'Starter',
+            'tier'             => 'starter',
+            'billing_cycle'    => 'monthly',
+            'price_xof'        => 0, // Gratuit
+            'publications_max' => 5,
             'is_active'        => true,
-            'features'         => ['1 annonce active pendant 15 jours'],
+            'features'         => [
+                'Gestion des propriétés',
+                'Gestion des locataires',
+                'Gestion des baux',
+                'Paiement des loyers',
+                'Tableau de bord basique'
+            ],
         ]);
 
         Plan::create([
@@ -33,40 +40,31 @@ class PlanLimitsTest extends TestCase
             'name'             => 'Pro',
             'tier'             => 'pro',
             'billing_cycle'    => 'monthly',
-            'publications_max' => 10,
+            'price_xof'        => 10000, // 10,000 FCFA par mois
+            'publications_max' => 15,
             'is_active'        => true,
-            'features'         => ['10 annonces actives pendant 30 jours'],
+            'features'         => [
+                'Gestion des propriétés',
+                'Gestion des locataires',
+                'Gestion des baux',
+                'Paiement des loyers',
+                'Tableau de bord basique',
+                'Mise en avant des logements',
+                'Rapports financiers avancés',
+                'Export Excel'
+            ],
         ]);
     }
 
-    private function createProprietaireEssaiGratuit(): array
+    private function createProprietaireStarter(): array
     {
         $user = User::factory()->proprietaire()->create();
-
-        $proprietaire = Proprietaire::create([
+        $proprietaire = Proprietaire::factory()->create([
             'user_id'              => $user->id,
-            'proprietaire_id'      => 'PROP-TEST-FREE',
-            'subscription_status'  => 'free_trial',
-            'plan'                 => 'free',
-            'trial_ends_at'        => now()->addDays(15),
-            'is_actif'             => true,
-        ]);
-
-        $token = $user->createToken('test-token')->plainTextToken;
-
-        return ['user' => $user, 'proprietaire' => $proprietaire, 'token' => $token];
-    }
-
-    private function createProprietaireEssaiExpire(): array
-    {
-        $user = User::factory()->proprietaire()->create();
-
-        $proprietaire = Proprietaire::create([
-            'user_id'              => $user->id,
-            'proprietaire_id'      => 'PROP-TEST-EXPIRED',
-            'subscription_status'  => 'expired',
-            'plan'                 => 'free',
-            'trial_ends_at'        => now()->subDays(1),
+            'subscription_status'  => 'active',
+            'plan'                 => 'starter',
+            'billing_cycle'        => 'monthly',
+            'trial_ends_at'        => null,
             'is_actif'             => true,
         ]);
 
@@ -78,14 +76,29 @@ class PlanLimitsTest extends TestCase
     private function createProprietairePro(): array
     {
         $user = User::factory()->proprietaire()->create();
-
-        $proprietaire = Proprietaire::create([
+        $proprietaire = Proprietaire::factory()->create([
             'user_id'              => $user->id,
-            'proprietaire_id'      => 'PROP-TEST-PRO',
             'subscription_status'  => 'active',
             'plan'                 => 'pro',
             'billing_cycle'        => 'monthly',
             'subscription_ends_at' => now()->addMonth(),
+            'is_actif'             => true,
+        ]);
+
+        $token = $user->createToken('test-token')->plainTextToken;
+
+        return ['user' => $user, 'proprietaire' => $proprietaire, 'token' => $token];
+    }
+
+    private function createProprietaireProExpired(): array
+    {
+        $user = User::factory()->proprietaire()->create();
+        $proprietaire = Proprietaire::factory()->create([
+            'user_id'              => $user->id,
+            'subscription_status'  => 'active', // Still active in DB but expired date
+            'plan'                 => 'pro',
+            'billing_cycle'        => 'monthly',
+            'subscription_ends_at' => now()->subDays(1), // Expired yesterday
             'is_actif'             => true,
         ]);
 
@@ -127,55 +140,68 @@ class PlanLimitsTest extends TestCase
     }
 
     /** @test */
-    public function un_proprietaire_gratuit_peut_publier_1_logement_mais_pas_2(): void
+    public function un_proprietaire_starter_peut_publier_5_logements_mais_pas_6(): void
     {
-        ['token' => $token, 'proprietaire' => $prop] = $this->createProprietaireEssaiGratuit();
+        ['token' => $token, 'proprietaire' => $prop] = $this->createProprietaireStarter();
         $propriete = $this->createPropriete($prop->id);
 
-        // Publication du 1er logement (doit réussir)
-        $response1 = $this->withToken($token)
-            ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
-        $response1->assertStatus(201);
-
-        // Publication du 2eme logement (doit échouer)
-        $response2 = $this->withToken($token)
-            ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
-
-        $response2->assertStatus(403)
-            ->assertJsonFragment(['code' => 'FREE_TRIAL_PUBLISH_LIMIT_REACHED']);
-    }
-
-    /** @test */
-    public function un_proprietaire_gratuit_expire_ne_peut_plus_publier(): void
-    {
-        ['token' => $token, 'proprietaire' => $prop] = $this->createProprietaireEssaiExpire();
-        $propriete = $this->createPropriete($prop->id);
-
-        $response = $this->withToken($token)
-            ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
-
-        $response->assertStatus(403)
-            ->assertJsonFragment(['code' => 'FREE_TRIAL_EXPIRED']);
-    }
-
-    /** @test */
-    public function un_proprietaire_pro_peut_publier_10_logements_mais_pas_11(): void
-    {
-        ['token' => $token, 'proprietaire' => $prop] = $this->createProprietairePro();
-        $propriete = $this->createPropriete($prop->id);
-
-        // Publier 10 logements
-        for ($i = 0; $i < 10; $i++) {
+        // Publication des 5 logements (doit réussir)
+        for ($i = 0; $i < 5; $i++) {
             $response = $this->withToken($token)
                 ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
             $response->assertStatus(201);
         }
 
-        // Le 11ème doit échouer
-        $response11 = $this->withToken($token)
+        // Publication du 6ème logement (doit échouer)
+        $response6 = $this->withToken($token)
             ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
 
-        $response11->assertStatus(403)
+        $response6->assertStatus(403)
+            ->assertJsonFragment(['code' => 'PUBLISH_LIMIT_REACHED']);
+    }
+
+    /** @test */
+    public function un_proprietaire_pro_peut_publier_15_logements_mais_pas_16(): void
+    {
+        ['token' => $token, 'proprietaire' => $prop] = $this->createProprietairePro();
+        $propriete = $this->createPropriete($prop->id);
+
+        // Publier 15 logements
+        for ($i = 0; $i < 15; $i++) {
+            $response = $this->withToken($token)
+                ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
+            $response->assertStatus(201);
+        }
+
+        // Le 16ème doit échouer
+        $response16 = $this->withToken($token)
+            ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
+
+        $response16->assertStatus(403)
+            ->assertJsonFragment(['code' => 'PUBLISH_LIMIT_REACHED']);
+    }
+
+    /** @test */
+    public function un_proprietaire_pro_expire_est_retrograde_vers_starter(): void
+    {
+        ['token' => $token, 'proprietaire' => $prop] = $this->createProprietaireProExpired();
+        $propriete = $this->createPropriete($prop->id);
+
+        // Après expiration du Pro, le propriétaire devrait être rétrogradé vers Starter
+        // Donc il devrait pouvoir publier jusqu'à 5 logements
+
+        // Publication de 5 logements (doit réussir car retrogradé vers Starter)
+        for ($i = 0; $i < 5; $i++) {
+            $response = $this->withToken($token)
+                ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
+            $response->assertStatus(201);
+        }
+
+        // Publication du 6ème logement (doit échouer car limite Starter)
+        $response6 = $this->withToken($token)
+            ->postJson("/api/proprietaire/proprietes/{$propriete->id}/logements", $this->createLogementPayload($propriete->id));
+
+        $response6->assertStatus(403)
             ->assertJsonFragment(['code' => 'PUBLISH_LIMIT_REACHED']);
     }
 }

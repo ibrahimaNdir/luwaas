@@ -23,7 +23,7 @@ class ProprieteFactory extends Factory
         return [
             'proprietaire_id' => Proprietaire::factory(),
             'titre'           => fake()->words(2, true),
-            'type'            => fake()->randomElement(['maison', 'villa', 'immeuble']),
+            'type'            => fake()->randomElement(['maison', 'villa', 'immeuble', 'appartement', 'local_commercial', 'bureau', 'magasin']),
             'adresse'         => fake()->address(),
             'description'     => fake()->paragraph(),
             'latitude'        => fake()->latitude(-14.8, -14.6),

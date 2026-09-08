@@ -26,7 +26,8 @@ class AdminController extends Controller
                             ->whereYear('created_at', $now->year)->count();
 
     // ── Abonnements par statut ──────────────────
-    $abonnementsGratuit  = Proprietaire::where('subscription_status', 'gratuit')->count();
+    $abonnementsStarter  = Proprietaire::where('subscription_status', 'active')
+                            ->where('plan', 'starter')->count();
     $abonnementsPro      = Proprietaire::where('subscription_status', 'active')
                             ->where('plan', 'pro')->count();
     $abonnementsExpires  = Proprietaire::where('subscription_status', 'expired')->count();
@@ -92,7 +93,7 @@ class AdminController extends Controller
             'churn_rate'            => $churnRate,
 
             // Abonnements
-            'abonnements_gratuit'   => $abonnementsGratuit,
+            'abonnements_starter'   => $abonnementsStarter,
             'abonnements_pro'       => $abonnementsPro,
             'abonnements_expires'   => $abonnementsExpires,
 

@@ -87,4 +87,9 @@ class Proprietaire extends Model
             'locataire_id'
         );
     }
+
+    public function payoutMethods()
+    {
+        return $this->hasMany(PayoutMethod::class);
+    }
 }

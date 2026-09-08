@@ -135,7 +135,10 @@ class DemandeController extends Controller
             return response()->json(['message' => 'Cette demande ne peut plus être refusée.'], 400);
         }
 
-        $this->demandeService->refuser($demande);
+        // Récupération optionnelle du motif (peut être null/absent)
+        $motif = $request->input('motif');
+
+        $this->demandeService->refuser($demande, $motif);
 
         return response()->json(['success' => true, 'message' => 'Demande refusée.', 'demande' => $demande]);
     }

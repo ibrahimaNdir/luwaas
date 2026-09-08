@@ -66,10 +66,14 @@ class LogementRequest extends FormRequest
         if (!$propriete) return [];
 
         return match ($propriete->type) {
-            'maison'   => ['maison', 'chambre', 'studio', 'appartement'],
-            'villa'    => ['villa'],
-            'immeuble' => ['appartement', 'studio'],
-            default    => []
+            'maison'           => ['maison', 'chambre', 'studio', 'appartement'],
+            'villa'            => ['villa', 'appartement', 'studio', 'chambre'],
+            'immeuble'         => ['appartement', 'studio', 'bureau', 'local_commercial', 'magasin'],
+            'appartement'      => ['appartement', 'chambre', 'studio'],
+            'local_commercial' => ['local_commercial', 'magasin'],
+            'bureau'           => ['bureau'],
+            'magasin'          => ['magasin'],
+            default            => [],
         };
     }
 

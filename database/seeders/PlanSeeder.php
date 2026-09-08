@@ -2,76 +2,54 @@
 
 namespace Database\Seeders;
 
-use App\Models\Plan;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\Plan;
 
 class PlanSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     */
     public function run(): void
     {
-        $plans = [
-            [
-                'slug'                   => 'starter',
-                'name'                   => 'Starter',
-                'tier'                   => 'starter',
-                'billing_cycle'          => null, // Pas de cycle de facturation
-                'price_base_xof'         => 0,
-                'price_per_property_xof' => 0,
-                'price_xof'              => 0, // Gratuit
-                'publications_max'       => null, // Illimité
-                'features'               => json_encode([
-                    'Gestion de base',
-                    'Quittances automatiques',
-                    'Dashboard basique',
-                    'Publication illimitée',
-                ]),
-                'is_active'              => true,
+        // PLAN STARTER (5 logements max - GRATUIT)
+        Plan::create([
+            'slug'             => 'starter',
+            'name'             => 'Starter',
+            'tier'             => 'starter',
+            'billing_cycle'    => 'monthly',
+            'price_xof'        => 0, // Gratuit
+            'publications_max' => 5,
+            'is_active'        => true,
+            'features'         => [
+                'Gestion des propriétés',
+                'Gestion des locataires',
+                'Gestion des baux',
+                'Paiement des loyers',
+                'Tableau de bord basique'
             ],
-            [
-                'slug'                   => 'pro-monthly',
-                'name'                   => 'Pro (Mensuel)',
-                'tier'                   => 'pro',
-                'billing_cycle'          => 'monthly',
-                'price_base_xof'         => 5000,
-                'price_per_property_xof' => 0, // Plus de frais par propriété
-                'price_xof'              => 5000,
-                'publications_max'       => null, // Illimité
-                'features'               => json_encode([
-                    'Tout le plan Starter',
-                    'Rapports financiers avancés',
-                    'Export Excel',
-                    'Rappels automatiques de loyer',
-                    'Historique complet',
-                    'Support prioritaire',
-                    'Mise en avant des logements',
-                ]),
-                'is_active'              => true,
-            ],
-            [
-                'slug'                   => 'pro-yearly',
-                'name'                   => 'Pro (Annuel)',
-                'tier'                   => 'pro',
-                'billing_cycle'          => 'yearly',
-                'price_base_xof'         => 48000,
-                'price_per_property_xof' => 0,
-                'price_xof'              => 48000,
-                'publications_max'       => null,
-                'features'               => json_encode([
-                    'Tout le plan Pro',
-                    'Économisez 12 000 FCFA/an',
-                ]),
-                'is_active'              => true,
-            ],
-        ];
+        ]);
 
-        foreach ($plans as $plan) {
-            Plan::updateOrCreate(
-                ['slug' => $plan['slug']],
-                $plan
-            );
-        }
-
-        // Nettoyage de l'ancien plan free_trial s'il existe
-        Plan::where('slug', 'free_trial')->delete();
+        // PLAN PRO (15 logements max + fonctionnalités avancées - PAYANT)
+        Plan::create([
+            'slug'             => 'pro-monthly',
+            'name'             => 'Pro',
+            'tier'             => 'pro',
+            'billing_cycle'    => 'monthly',
+            'price_xof'        => 10000, // 10,000 FCFA par mois (à ajuster selon vos besoins)
+            'publications_max' => 15,
+            'is_active'        => true,
+            'features'         => [
+                'Gestion des propriétés',
+                'Gestion des locataires',
+                'Gestion des baux',
+                'Paiement des loyers',
+                'Tableau de bord basique',
+                'Mise en avant des logements',
+                'Rapports financiers avancés',
+                'Export Excel'
+            ],
+        ]);
     }
 }

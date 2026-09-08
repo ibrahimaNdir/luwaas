@@ -11,6 +11,9 @@ use Carbon\Carbon;
  * @property string|null $billing_cycle
  * @property \Carbon\Carbon|null $subscription_ends_at
  * @property \Carbon\Carbon|null $cancelled_at
+ * @property \Carbon\Carbon|null $expiration_notified_at
+ * @property \Carbon\Carbon|null $choice_notified_at
+ * @property \Carbon\Carbon|null $choice_made_at
  */
 trait Subscribable
 {
@@ -37,6 +40,7 @@ trait Subscribable
 
         // Pour les plans payants (Pro), on vérifie le statut et la date de fin
         return $this->subscription_status === 'active'
+            && $this->plan !== null
             && $this->subscription_ends_at instanceof Carbon
             && $this->subscription_ends_at->isFuture();
     }
@@ -86,34 +90,146 @@ trait Subscribable
                 ->first();
         }
 
-        return Plan::where('tier', 'pro')
-            ->where('billing_cycle', $this->billing_cycle ?? 'monthly')
+        return Plan::where('tier', $this->tier)
+            ->where('billing_cycle', $this->billing_cycle)
             ->where('is_active', true)
             ->first();
     }
 
     // ─────────────────────────────────────────
-    // 4. LIMITES DU PLAN
+    // 4. PUBLICATIONS
     // ─────────────────────────────────────────
+
+  
+
+    // ─────────────────────────────────────
+    // 5. EXPIRATION TRACKING
+    // ─────────────────────────────────────
+    public function getExpirationNotifiedAtAttribute($value)
+    {
+        return $value ? Carbon::parse($value) : null;
+    }
+
+    public function setExpirationNotifiedAtAttribute($value): void
+    {
+        $this->attributes['expiration_notified_at'] = $value ? Carbon::parse($value) : null;
+    }
+
+    public function getChoiceNotifiedAtAttribute($value)
+    {
+        return $value ? Carbon::parse($value) : null;
+    }
+
+    public function setChoiceNotifiedAtAttribute($value): void
+    {
+        $this->attributes['choice_notified_at'] = $value ? Carbon::parse($value) : null;
+    }
+
+    public function getChoiceMadeAtAttribute($value)
+    {
+        return $value ? Carbon::parse($value) : null;
+    }
+
+    public function setChoiceMadeAtAttribute($value): void
+    {
+        $this->attributes['choice_made_at'] = $value ? Carbon::parse($value) : null;
+    }
+
+    /**
+     * Retourne true si nous sommes dans le délai de grâce de 3 jours
+     * après le passage du statut à 'expired' ou 'cancelled' ET que la
+     * première notification a déjà été envoyée.
+     */
+    public function isInGracePeriod(): bool
+    {
+        return $this->expiration_notified_at !== null
+            && $this->subscription_status !== null
+            && in_array($this->subscription_status, ['expired', 'cancelled'])
+            && $this->expiration_notified_at->diffInHours(now()) < 72; // 3 jours
+    }
+
+    /**
+     * Retourne true quand le délai de grâce est écoulé (≥ 3 j) et que
+     * le propriétaire n’a pas encore fait de choix.
+     */
+    public function hasGracePeriodElapsed(): bool
+    {
+        return $this->expiration_notified_at !== null
+            && $this->subscription_status !== null
+            && in_array($this->subscription_status, ['expired', 'cancelled'])
+            && $this->expiration_notified_at->diffInHours(now()) >= 72; // 3 jours
+    }
+
+    /**
+     * Nombre de logements publiés **et vacants** (pas de bail actif).
+     */
+    public function vacantPublishedLogements()
+    {
+        return $this->logements()
+            ->where('statut_publication', 'publie')
+            ->whereDoesntHave('bails', fn ($q) => $q->where('status', 'actif'));
+    }
+
+    /**
+     * Excédent de logements vacants publiés au‑delà de la limite Starter (5).
+     */
+    public function excessVacantPublishedCount(): int
+    {
+        $limit = 5; // limite Starter
+        $excess = $this->vacantPublishedLogements()->count() - $limit;
+        return $excess > 0 ? $excess : 0;
+    }
+
+    /**
+     * Quand le propriétaire retrouve un abonnement Pro actif,
+     * republie tous les logements qui avaient été archivés pour cause
+     * d’expiration d’abonnement.
+     */
+    public function republishPreviouslyArchivedLogements(): void
+    {
+        $this->logements()
+            ->where('statut_publication', 'archivé')
+            ->where('archived_reason', 'subscription_expiration')
+            ->update([
+                'statut_publication' => 'publie',
+                'archived_reason'    => null,
+                'archived_at'        => null,
+            ]);
+    }
+
+    // ─────────────────────────────────────
+    // 6. LIMITES DU PLAN
+    // ─────────────────────────────────────
 
     public function planLimits(): array
     {
+        $plan = $this->resolvedPlan();
+
+        if (! $plan) {
+            return [
+                'plan' => null,
+                'publications_max' => null,
+                'publications_used' => 0,
+                'publications_left' => 0,
+            ];
+        }
+
         $publishedCount = $this->logements()
             ->where('statut_publication', 'publie')
-            ->where('statut_occupe', 'disponible')
+            ->whereDoesntHave('bails', fn ($q) => $q->where('status', 'actif'))
             ->count();
 
         return [
-            'plan' => $this->plan ?? 'starter',
-            'publications_max' => null, // Illimité
+            'plan' => $this->plan,
+            'publications_max' => $plan->publications_max,
             'publications_used' => $publishedCount,
-            'publications_left' => 999,
+            'publications_left' => max(0, $plan->publications_max - $publishedCount),
         ];
     }
 
-    // ─────────────────────────────────────────
-    // 5. RÉSUMÉ FRONT
-    // ─────────────────────────────────────────
+    // ─────────────────────────────────────
+    // 7. RÉSUMÉ FRONT
+    // ─────────────────────────────────────
 
     public function subscriptionSummary(): array
     {
@@ -131,7 +247,7 @@ trait Subscribable
 
         return [
             'status' => $this->subscription_status,
-            'plan' => $this->plan ?? 'starter',
+            'plan' => $this->plan,
             'billing_cycle' => $this->billing_cycle,
             'has_access' => $this->hasAccess(),
             'can_access_backoffice' => $this->canAccessBackOffice(),
@@ -142,10 +258,6 @@ trait Subscribable
             'limits' => $this->planLimits(),
         ];
     }
-
-    // ─────────────────────────────────────────
-    // 6. VÉRIFICATION DES FEATURES
-    // ─────────────────────────────────────────
 
     public function canUseFeature(string $feature): bool
     {

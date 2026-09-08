@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('subscription_status')->default('free_trial');
             // free_trial | pending_payment | active | expired | cancelled
 
-            $table->string('plan')->default('free');
+            $table->string('plan')->nullable();
             // free | pro
 
             $table->string('billing_cycle')->nullable();

@@ -24,6 +24,7 @@ use App\Http\Controllers\API\Admin\AdminPaymentController;
 use App\Http\Controllers\API\Admin\AdminTicketController;
 use App\Http\Controllers\API\TicketController;
 
+use App\Http\Controllers\API\PayoutController; // Added
 
 use App\Models\User;
 use App\Services\NotificationService;
@@ -45,11 +46,13 @@ Route::controller(AuthController::class)->group(function () {
     Route::post('/verify-otp', 'verifyOtp');
     Route::post('/resend-otp', 'resendOtp');
 });
+
 // ============================================
 // 🌐 WEBHOOKS (SANS AUTH — PayDunya appelle sans token)
 // ============================================
 
 Route::post('/webhook/paydunya', [WebhookController::class, 'handle']);
+Route::post('/webhook/bictorys', [WebhookController::class, 'handle']);
 
 // ============================================
 // 🔐 ROUTES COMMUNES (auth uniquement)
@@ -78,6 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tickets', [TicketController::class, 'index']);
     Route::post('/tickets', [TicketController::class, 'store']);
     Route::get('/tickets/{id}', [TicketController::class, 'show']);
+    // Route::post('/transactions/{id}/annuler', [PaymentController::class, 'annurerTransaction']);
 });
 
 // ============================================
@@ -126,6 +130,9 @@ Route::middleware(['auth:sanctum', 'admin'])
         Route::get('/tickets/{id}', [AdminTicketController::class, 'show']);
         Route::post('/tickets/{id}/repondre', [AdminTicketController::class, 'repondre']);
         Route::patch('/tickets/{id}/fermer', [AdminTicketController::class, 'fermer']);
+        // LOCATAIRE SUSPEND / ACTIVATE
+        Route::patch('/locataires/{id}/suspend', [AdminLocataireController::class, 'suspend']);
+        Route::patch('/locataires/{id}/activate', [AdminLocataireController::class, 'activate']);
     });
 
 // ============================================
@@ -136,7 +143,7 @@ Route::middleware(['auth:sanctum', 'admin'])
 Route::middleware(['auth:sanctum', 'proprietaire'])->group(function () {
     Route::get('/abonnements/statut',      [TransactionController::class, 'statutAbonnement']);
     Route::post('/abonnements/initier',    [PaymentController::class, 'initierAbonnement']);
-    Route::post('/abonnements/annuler',    [PaymentController::class, 'annulerAbonnement']);
+    Route::post('/abonnements/annuler',    [PaymentController::class, 'annilerAbonnement']);
     Route::post('/abonnements/renouveler', [PaymentController::class, 'renouvelerAbonnement']);
     //Route::get('/abonnements/historique',  [TransactionController::class, 'indexProprietaire']);
 });
@@ -153,9 +160,6 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
 
         // Dashboard
         Route::get('/dashboard', [ProprietaireDashboardController::class, 'proprietaire']);
-        // Route::get('/stats-proprietes', [ProprietaireDashboardController::class, 'statsProprietes']);
-        // Route::get('/stats/historique-6-mois', [ProprietaireDashboardController::class, 'historique6Mois']);
-
 
         // Propriétés
         Route::get('/proprietes/count', [PropertyController::class, 'countProperty']);
@@ -167,7 +171,8 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
         Route::get('/proprietes/{id}', [PropertyController::class, 'show']);
 
         // Logements
-        Route::post('/proprietes/{proprieteId}/logements', [LogementController::class, 'store']);
+        Route::post('/proprietes/{proprieteId}/logements', [LogementController::class, 'store'])
+            ->middleware('check.publication');
         Route::put('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'updateInfos']);
         Route::delete('/proprietes/{proprieteId}/logements/{id}', [LogementController::class, 'destroy']);
         Route::get('/proprietes/{proprieteId}/logements', [LogementController::class, 'indexByPropriete']);
@@ -198,7 +203,7 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
         Route::get('/proprietaire/dashboard', [ProprietaireDashboardController::class, 'proprietaire']);
 
         // Stats optionnelles
-        Route::get('/proprietaire/stats/historique-6-mois', [ProprietaireDashboardController::class, 'historique6Mois']);
+        Route::get('/proprietaire/stats/historique-6-mois', [ProprietaireDashboardController::class, 'historico6Mois']);
         Route::get('/proprietaire/stats/par-propriete', [ProprietaireDashboardController::class, 'statsParPropriete']);
 
         // Rapports Financiers
@@ -225,6 +230,14 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
 
         // Score Locataire (NOUVEAU)
         Route::get('/locataires/{id}/score', [\App\Http\Controllers\API\LocataireController::class, 'voirScoreProprietaire']);
+
+        // Versements
+        Route::get('/payouts', [PayoutController::class, 'index']);
+        Route::get('/payouts/{id}', [PayoutController::class, 'show']);
+        Route::get('/earnings', [PayoutController::class, 'currentEarnings']);
+
+        // LOCATAIRE LIST
+        Route::get('/locataires', [PropertyController::class, 'allLocataires']);
     });
 
 // ============================================
@@ -233,11 +246,8 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
 
 Route::middleware(['auth:sanctum', 'locataire'])->prefix('locataire')->group(function () {
 
-
     // Dashboard
-
     Route::get('/dashboard', [LocataireDashboardController::class, 'index']);
-
 
     // Demandes
     Route::post('/demandes', [DemandeController::class, 'store']);
@@ -255,7 +265,6 @@ Route::middleware(['auth:sanctum', 'locataire'])->prefix('locataire')->group(fun
     Route::get('/baux/{id}/pdf', [BailController::class, 'exportPdf']);
 
     // Paiements loyers
-
     Route::get('/paiements', [PaymentController::class, 'index']);
     Route::get('/paiements/stats', [PaymentController::class, 'statistiques']);
     Route::post('/paiements/{id}/initier', [PaymentController::class, 'initierLoyer']);
@@ -290,4 +299,5 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::prefix('admin')->group(function () {
         Route::get('/bailleurs/ratio-paiements', [\App\Http\Controllers\API\AdminDashboardController::class, 'ratioPaiements']);
     });
+  });
 });

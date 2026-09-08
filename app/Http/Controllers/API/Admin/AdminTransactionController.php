@@ -25,7 +25,7 @@ class AdminTransactionController extends Controller
                 $query->where('statut', $statut);
             })
             ->when($request->mode_paiement, function ($query, $mode) {
-                // wave, orange_money, free_money ...
+                // Supported payment methods: .implode(', ', config('luwaas.payment_methods.mobile_money'))...
                 $query->where('mode_paiement', $mode);
             })
             ->when($request->date_debut, function ($query, $date) {
@@ -112,7 +112,12 @@ class AdminTransactionController extends Controller
             'loyers_en_attente' => Paiement::where('statut', 'en_attente')->count(),
 
             // Évolution 6 derniers mois
-            'evolution_6_mois'  => $evolution,
+            'evolution_6_mois'     => Transaction::where('statut', 'success')
+                                        ->where('date_transaction', '>=', $now->copy()->subMonths(6))
+                                        ->selectRaw('YEAR(date_transaction) as annee, MONTH(date_transaction) as mois, SUM(montant) as total')
+                                        ->groupBy('annee', 'mois')
+                                        ->orderBy('annee', 'mois')
+                                        ->get(),
         ];
 
         return response()->json([

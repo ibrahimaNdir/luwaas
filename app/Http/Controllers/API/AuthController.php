@@ -192,7 +192,7 @@ class AuthController extends Controller
     }
 
     // ─────────────────────────────────────────────
-    // RESEND OTP
+    // RESEND OPT
     // ─────────────────────────────────────────────
     public function resendOtp(Request $request)
     {

@@ -39,7 +39,7 @@ class PaymentController extends Controller
 
         $validated = $request->validate([
             'plan_id'   => 'required|exists:plans,id',
-            'operateur' => 'required|in:wave,orange_money,free_money',
+            'operateur' => 'required|in:' . implode(',', config('luwaas.payment_methods.mobile_money')),
             'telephone' => 'nullable|string|max:20',
         ]);
 
@@ -127,7 +127,7 @@ class PaymentController extends Controller
 
         $validated = $request->validate([
             'plan_id'   => 'required|exists:plans,id',
-            'operateur' => 'required|in:wave,orange_money,free_money',
+            'operateur' => 'required|in:' . implode(',', config('luwaas.payment_methods.mobile_money')),
             'telephone' => 'nullable|string|max:20',
         ]);
 
@@ -167,7 +167,7 @@ class PaymentController extends Controller
         $locataireId = $this->locataireId($request);
 
         $validated = $request->validate([
-            'operateur' => 'required|in:wave,orange_money,free_money',
+            'operateur' => 'required|in:' . implode(',', config('luwaas.payment_methods.mobile_money')),
             'telephone' => 'nullable|string|max:20',
         ]);
 

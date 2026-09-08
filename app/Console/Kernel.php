@@ -47,6 +47,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('demandes:expirer-non-abouties')
             ->dailyAt('09:00')
             ->timezone('Africa/Dakar');
+
+        // Traitement périodique des versements en attente (sauvegarde pour les échecs instantanés)
+        $schedule->command('luwaas:process-payouts')
+            ->everyFiveMinutes()
+            ->timezone('Africa/Dakar')
+            ->withoutOverlapping();
     }
 
     /**

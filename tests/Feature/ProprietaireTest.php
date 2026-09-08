@@ -52,19 +52,20 @@ class ProprietaireTest extends TestCase
     }
 
     /**
-     * Crée un proprietaire en période d'essai gratuit.
+     * Crée un proprietaire avec le plan Starter actif (remplace l'ancien essai gratuit).
      */
-    private function createProprietaireEssai(): array
+    private function createProprietaireStarter(): array
     {
         $user = User::factory()->proprietaire()->create(['phone_verified_at' => now()]);
 
         $proprietaire = Proprietaire::create([
             'user_id'              => $user->id,
             'proprietaire_id'      => 'PROP-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
-            'subscription_status'  => 'free_trial',
-            'plan'                 => 'free',
-            'trial_ends_at'        => now()->addDays(15),
-            'subscription_ends_at' => null,
+            'subscription_status'  => 'active', // Starter est actif par défaut
+            'plan'                 => 'starter', // Nouveau plan par défaut
+            'billing_cycle'        => null,      // Pas de facturation périodique pour Starter
+            'trial_ends_at'        => null,      // Pas d'essai pour Starter
+            'subscription_ends_at' => null,      // Starter n'expire pas
             'is_actif'             => true,
         ]);
 
@@ -74,19 +75,21 @@ class ProprietaireTest extends TestCase
     }
 
     /**
-     * Crée un proprietaire sans abonnement actif (expiré).
+     * Crée un proprietaire sans plan actif (pour tester les cas limites).
+     * Dans le nouveau modèle, ceci représente un cas inhabituel car tous
+     * les nouveaux proprios devraient commencer avec Starter actif.
      */
-    private function createProprietaireSansAbonnement(): array
+    private function createProprietaireSansPlan(): array
     {
         $user = User::factory()->proprietaire()->create(['phone_verified_at' => now()]);
 
         $proprietaire = Proprietaire::create([
             'user_id'              => $user->id,
             'proprietaire_id'      => 'PROP-' . str_pad($user->id, 5, '0', STR_PAD_LEFT),
-            'subscription_status'  => 'expired',
-            'plan'                 => 'free',
-            'trial_ends_at'        => now()->subDays(5),
-            'subscription_ends_at' => now()->subDays(5),
+            'subscription_status'  => 'inactive', // Pas d'abonnement actif
+            'plan'                 => null,       // Pas de plan sélectionné
+            'trial_ends_at'        => null,
+            'subscription_ends_at' => null,
             'is_actif'             => true,
         ]);
 
@@ -211,13 +214,13 @@ class ProprietaireTest extends TestCase
     }
 
     /** @test */
-    public function un_proprietaire_sans_abonnement_peut_acceder_au_backoffice(): void
+    public function un_proprietaire_sans_plan_peut_acceder_au_backoffice(): void
     {
-        ['token' => $token] = $this->createProprietaireSansAbonnement();
+        ['token' => $token] = $this->createProprietaireSansPlan();
 
         $this->withToken($token)
              ->getJson('/api/proprietaire/dashboard')
-             ->assertStatus(200);
+             ->assertStatus(200); // Backoffice accessible même sans plan
     }
 
     // ══════════════════════════════════════════════
@@ -235,9 +238,9 @@ class ProprietaireTest extends TestCase
     }
 
     /** @test */
-    public function un_proprietaire_en_essai_peut_acceder_au_dashboard(): void
+    public function un_proprietaire_starter_peut_acceder_au_dashboard(): void
     {
-        ['token' => $token] = $this->createProprietaireEssai();
+        ['token' => $token] = $this->createProprietaireStarter();
 
         $this->withToken($token)
              ->getJson('/api/proprietaire/dashboard')
@@ -246,7 +249,7 @@ class ProprietaireTest extends TestCase
 
     // ══════════════════════════════════════════════
     // ABONNEMENTS
-    // ══════════════════════════════════════════════
+    // ════════════╈════════════════════════════════
 
     /** @test */
     public function un_proprietaire_peut_voir_son_statut_dabonnement(): void
@@ -259,9 +262,9 @@ class ProprietaireTest extends TestCase
     }
 
     /** @test */
-    public function un_proprietaire_sans_abonnement_peut_voir_son_statut(): void
+    public function un_proprietaire_sans_plan_peut_voir_son_statut(): void
     {
-        ['token' => $token] = $this->createProprietaireSansAbonnement();
+        ['token' => $token] = $this->createProprietaireSansPlan();
 
         $this->withToken($token)
              ->getJson('/api/abonnements/statut')
@@ -439,7 +442,7 @@ class ProprietaireTest extends TestCase
 
     // ══════════════════════════════════════════════
     // GESTION DES LOGEMENTS
-    // ══════════════════════════════════════════════
+    // ═════╈════════════════════════════════════════
 
     /** @test */
     public function un_proprietaire_peut_lister_tous_ses_logements(): void
@@ -634,7 +637,7 @@ class ProprietaireTest extends TestCase
             'subscription_status' => 'active',
         ]);
         $propriete = $this->createPropriete($autreProp->id, $geo);
-        $logement  = $this->createLogementPublie($propriete->id);
+        $logement  = $this->createLogementPublie($autreProp->id);
         $locataire = $this->createLocataire();
         $demande   = $this->createDemande($logement->id, $locataire->id, $autreProp->id);
 
@@ -643,9 +646,9 @@ class ProprietaireTest extends TestCase
              ->assertStatus(403);
     }
 
-    // ══════════════════════════════════════════════
+    // ═════════════════════╈═══════════════════════
     // GESTION DES BAUX
-    // ══════════════════════════════════════════════
+    // ═════════════════════════════════════════════
 
     /** @test */
     public function un_proprietaire_peut_lister_ses_baux(): void
@@ -674,7 +677,7 @@ class ProprietaireTest extends TestCase
             'date_demande'    => now(),
         ]);
 
-        $response = $this->withToken($token)->postJson('/api/proprietaire/baux', [
+        $response = $this->withToken($token)->postJson('/api/proprietaire/bauks', [
             'demande_id'                 => $demande->id,
             'nombre_mois_caution'        => 2,
             'date_debut'                 => now()->toDateString(),
@@ -700,7 +703,7 @@ class ProprietaireTest extends TestCase
         $locataire = $this->createLocataire();
         $demande   = $this->createDemande($logement->id, $locataire->id, $prop->id);
 
-        $response = $this->withToken($token)->postJson('/api/proprietaire/baux', [
+        $response = $this->withToken($token)->postJson('/api/proprietaire/bauks', [
             'demande_id'                 => $demande->id,
             'nombre_mois_caution'        => 2,
             'date_debut'                 => now()->toDateString(),
@@ -726,7 +729,7 @@ class ProprietaireTest extends TestCase
     /** @test */
     public function un_proprietaire_peut_initier_un_abonnement(): void
     {
-        ['token' => $token, 'proprietaire' => $prop] = $this->createProprietaireSansAbonnement();
+        ['token' => $token] = $this->createProprietaireSansPlan();
 
         $plan = \App\Models\Plan::create([
             'name'                => 'Pro',
@@ -763,4 +766,3 @@ class ProprietaireTest extends TestCase
                  ->assertJsonFragment(['success' => true]);
     }
 }
-
