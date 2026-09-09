@@ -26,7 +26,7 @@ class ProprietaireFactory extends Factory
             'is_actif'             => true,
             'subscription_status'  => 'pending_plan',
             'trial_ends_at'       => null,
-            'plan'                => 'free',
+            'plan'                => 'starter',
             'billing_cycle'       => null,
             'subscription_ends_at' => null,
             'cancelled_at'        => null,
