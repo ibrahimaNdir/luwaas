@@ -1,0 +1,7 @@
+<svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Left Pan (Dark Gray) -->
+  <path d="M 57 20 L 12 65 L 32 85 L 57 60 Z" fill="#1F2937" stroke="#1F2937" stroke-width="2" stroke-linejoin="round" />
+  
+  <!-- Right Pan (Teal) -->
+  <path d="M 63 20 L 108 65 L 88 85 L 63 60 Z" fill="#0F766E" stroke="#0F766E" stroke-width="2" stroke-linejoin="round" />
+</svg>

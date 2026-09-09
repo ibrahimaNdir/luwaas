@@ -1,67 +1,68 @@
 <?php
 
-namespace App\Services;
+namespace App\Listeners;
 
-use Kreait\Firebase\Contract\Firestore;
-use Google\Cloud\Core\Timestamp;
-use Illuminate\Support\Facades\Log;
+use App\Events\DemandeRappelJ7;
+use App\Services\NotificationService;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class NotificationService
+class NotifierRappelDemandeJ7 implements ShouldQueue
 {
-    protected $firestore;
+    protected $notificationService;
 
-    public function __construct(Firestore $firestore)
+    public function __construct(NotificationService $notificationService)
     {
-        $this->firestore = $firestore;
+        $this->notificationService = $notificationService;
     }
 
     /**
-     * Enregistre une notification in-app pour un utilisateur (Firestore uniquement)
+     * Envoie une notification de rappel J7 au locataire concernant sa demande en attente
      */
-    public function sendToUser($user, $title, $body, $type, array $data = [])
+    public function handle(DemandeRappelJ7 $event)
     {
-        if (!$user) {
-            Log::warning("NotificationService: Utilisateur null");
-            return false;
-        }
-
         try {
-            $this->firestore->database()
-                ->collection('users')
-                ->document((string) $user->id)
-                ->collection('notifications')
-                ->add([
-                    'title' => $title,
-                    'body' => $body,
-                    'type' => $type,
-                    'read' => false,
-                    'createdAt' => new Timestamp(new \DateTime()),
-                    'data' => $data,
+            $demande = $event->demande;
+
+            // Validation défensive des relations
+            if (!$demande->locataire ||
+                !$demande->locataire->user ||
+                !$demande->logement) {
+
+                Log::warning('Notification ignorée: relations manquantes pour DemandeRappelJ7', [
+                    'demande_id' => $demande->id ?? 'unknown',
+                    'has_locataire' => !is_null($demande->locataire),
+                    'has_locataire_user' => !is_null($demande->locataire?->user),
+                    'has_logement' => !is_null($demande->logement)
                 ]);
-
-            Log::info("✅ Notification Firestore sauvegardée pour user {$user->id}");
-            return true;
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur Firestore user {$user->id}: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    public function sendToMultipleUsers(array $users, $title, $body, $type, array $data = [])
-    {
-        $successCount = 0;
-
-        foreach ($users as $user) {
-            if ($this->sendToUser($user, $title, $body, $type, $data)) {
-                $successCount++;
+                return;
             }
+
+            $locataire = $demande->locataire->user;
+            $logement = $demande->logement;
+
+            // Construire le message de rappel
+            $logementInfo = $logement->typelogement . ' ' . $logement->numero . ' - ' . $logement->propriete->titre ?? '';
+            $message = "Votre demande pour le logement {$logementInfo} est toujours en attente après 7 jours. N'hésitez pas à suivre up ou à explorer d'autres options.";
+
+            $this->notificationService->sendToUser(
+                $locataire,
+                "Rappel : demande en attente",
+                $message,
+                "demande_rappel_j7",
+                [
+                    'demande_id' => (string) $demande->id,
+                    'logement_id' => (string) $demande->logement_id,
+                ]
+            );
+        } catch (\Throwable $e) {
+            // Empêcher qu'une exception de listener ne bloque les autres listeners
+            Log::error('Erreur dans NotifierRappelDemandeJ7: ' . $e->getMessage(), [
+                'event' => 'DemandeRappelJ7',
+                'demande_id' => $event->demande->id ?? 'unknown',
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // Ne pas relancer l'exception pour permettre aux autres listeners de s'exécuter
         }
-
-        Log::info("📊 Notifications envoyées : {$successCount}/" . count($users));
-
-        return $successCount;
     }
-
-    // markAsRead(), markAllAsRead(), deleteNotification(), getUnreadCount()
-    // restent identiques, aucun changement nécessaire
 }

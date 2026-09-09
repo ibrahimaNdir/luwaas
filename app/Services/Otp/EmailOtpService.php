@@ -16,13 +16,6 @@ class EmailOtpService implements OtpServiceInterface
 
     public function sendOtp(string $recipient, string $otp): void
     {
-        // Version simple : mail brut. Plus tard tu mettras une vraie Mailable.
-        Mail::raw(
-            "Votre code de vérification Luwaas est : {$otp}. Il est valable 10 minutes.",
-            function ($message) use ($recipient) {
-                $message->to($recipient)
-                        ->subject('Code de vérification Luwaas');
-            }
-        );
+        \Illuminate\Support\Facades\Mail::to($recipient)->send(new \App\Mail\OtpVerificationMail($otp));
     }
 }

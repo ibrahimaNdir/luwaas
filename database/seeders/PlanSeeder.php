@@ -2,72 +2,54 @@
 
 namespace Database\Seeders;
 
-use App\Models\Plan;
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\Plan;
 
 class PlanSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     */
     public function run(): void
     {
-        $plans = [
-            [
-                'slug'             => 'free',
-                'name'             => 'Gratuit',
-                'tier'             => 'free',
-                'billing_cycle'    => null,
-                'price_xof'        => 0,
-                'publications_max' => 1,
-                'features' => [
-                    '1 annonce active pendant 15 jours',
-                    'Gestion de vos propriétés',
-                    'Gestion de vos logements',
-                    'Gestion des locataires',
-                    'Création de baux',
-                    'Quittances PDF',
-                ],
-                'is_active'        => true,
+        // PLAN STARTER (5 logements max - GRATUIT)
+        Plan::create([
+            'slug'             => 'starter',
+            'name'             => 'Starter',
+            'tier'             => 'starter',
+            'billing_cycle'    => 'monthly',
+            'price_xof'        => 0, // Gratuit
+            'publications_max' => 5,
+            'is_active'        => true,
+            'features'         => [
+                'Gestion des propriétés',
+                'Gestion des locataires',
+                'Gestion des baux',
+                'Paiement des loyers',
+                'Tableau de bord basique'
             ],
-            [
-                'slug'             => 'pro-monthly',
-                'name'             => 'Pro',
-                'tier'             => 'pro',
-                'billing_cycle'    => 'monthly',
-                'price_xof'        => 5000,
-                'publications_max' => 10,
-                'features' => [
-                    '10 annonces actives pendant 30 jours',
-                    'Tout le plan Gratuit',
-                    'Mise en avant des logements',
-                    'Rapports financiers avancés',
-                    'Export Excel',
-                    'Rappels automatiques de loyer par SMS',
-                    'Historique complet des paiements',
-                    'Support prioritaire',
-                ],
-                'is_active'        => true,
-            ],
-            [
-                'slug'             => 'pro-yearly',
-                'name'             => 'Pro Annuel',
-                'tier'             => 'pro',
-                'billing_cycle'    => 'yearly',
-                'price_xof'        => 48000,
-                'publications_max' => 10,
-                'features' => [
-                    'Tout le plan Pro',
-                    'Économisez 12 000 FCFA par an',
-                    '2 mois offerts',
-                    'Accès prioritaire aux nouvelles fonctionnalités',
-                ],
-                'is_active'        => true,
-            ],
-        ];
+        ]);
 
-        foreach ($plans as $plan) {
-            Plan::updateOrCreate(
-                ['slug' => $plan['slug']],
-                $plan
-            );
-        }
+        // PLAN PRO (15 logements max + fonctionnalités avancées - PAYANT)
+        Plan::create([
+            'slug'             => 'pro-monthly',
+            'name'             => 'Pro',
+            'tier'             => 'pro',
+            'billing_cycle'    => 'monthly',
+            'price_xof'        => 10000, // 10,000 FCFA par mois (à ajuster selon vos besoins)
+            'publications_max' => 15,
+            'is_active'        => true,
+            'features'         => [
+                'Gestion des propriétés',
+                'Gestion des locataires',
+                'Gestion des baux',
+                'Paiement des loyers',
+                'Tableau de bord basique',
+                'Mise en avant des logements',
+                'Rapports financiers avancés',
+                'Export Excel'
+            ],
+        ]);
     }
 }

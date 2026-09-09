@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\Bail;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\DB;
 
 class PaymentController extends Controller
 {
@@ -38,7 +39,7 @@ class PaymentController extends Controller
 
         $validated = $request->validate([
             'plan_id'   => 'required|exists:plans,id',
-            'operateur' => 'required|in:wave,orange_money,free_money',
+            'operateur' => 'required|in:' . implode(',', config('luwaas.payment_methods.mobile_money')),
             'telephone' => 'nullable|string|max:20',
         ]);
 
@@ -126,7 +127,7 @@ class PaymentController extends Controller
 
         $validated = $request->validate([
             'plan_id'   => 'required|exists:plans,id',
-            'operateur' => 'required|in:wave,orange_money,free_money',
+            'operateur' => 'required|in:' . implode(',', config('luwaas.payment_methods.mobile_money')),
             'telephone' => 'nullable|string|max:20',
         ]);
 
@@ -166,7 +167,7 @@ class PaymentController extends Controller
         $locataireId = $this->locataireId($request);
 
         $validated = $request->validate([
-            'operateur' => 'required|in:wave,orange_money,free_money',
+            'operateur' => 'required|in:' . implode(',', config('luwaas.payment_methods.mobile_money')),
             'telephone' => 'nullable|string|max:20',
         ]);
 
@@ -286,7 +287,7 @@ class PaymentController extends Controller
         abort_if(!$this->accesBailAutorise($request, $bail), 403, 'Non autorisé.');
 
         $paiement = Paiement::where('bail_id', $bailId)
-            ->where('statut', 'impayé')
+            ->whereIn('statut', ['impayé', 'partiel'])
             ->orderBy('date_echeance')
             ->first();
 
@@ -374,5 +375,65 @@ class PaymentController extends Controller
 
         return PDF::loadView('pdf.quittance', compact('paiement'))
             ->download('Quittance_Loyer_' . $paiement->id . '.pdf');
+    }
+
+    // ═══════════════════════════════════════════
+    // PAIEMENT MANUEL (HORS LIGNE)
+    // ═══════════════════════════════════════════
+
+    public function markAsPaidManually(Request $request, int $id)
+    {
+        $proprietaire = $this->proprietaire($request);
+        $paiement = Paiement::with('bail.logement.propriete')->findOrFail($id);
+
+        // Vérifier l'appartenance
+        if ($paiement->bail?->proprietaire_id !== $proprietaire->id) {
+            return response()->json(['message' => 'Non autorisé.'], 403);
+        }
+
+        if ($paiement->statut === 'payé') {
+            return response()->json(['message' => 'Le paiement est déjà réglé.'], 422);
+        }
+
+        DB::transaction(function () use ($paiement, $request) {
+            // Créer une transaction bidon pour la traçabilité
+            $transaction = Transaction::create([
+                'type'             => 'rent_payment',
+                'paiement_id'      => $paiement->id,
+                'reference'        => 'MANUEL-' . strtoupper(uniqid()),
+                'mode_paiement'    => $request->input('mode', 'especes'), // especes, wave_direct, etc.
+                'montant'          => $paiement->montant_attendu,
+                'statut'           => 'valide',
+                'date_transaction' => now(),
+            ]);
+
+            $paiement->update([
+                'statut'          => 'payé',
+                'montant_paye'    => $paiement->montant_attendu,
+                'montant_restant' => 0,
+            ]);
+
+            // Si c'est une signature, on active le bail
+            if ($paiement->type === 'signature' && $paiement->bail) {
+                $bail = $paiement->bail;
+                $bail->update([
+                    'statut'          => 'actif',
+                    'date_activation' => now(),
+                ]);
+                $bail->logement->update(['statut_occupe' => 'occupe']);
+                
+                event(new \App\Events\BailSigne($bail));
+                
+                // On utilise resolve() pour éviter d'injecter BailService dans tout le controller
+                $bailService = resolve(\App\Services\BailService::class);
+                $bailService->genererLoyersMensuels($bail);
+                $bailService->genererEtStockerPdf($bail);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Paiement marqué comme réglé manuellement.',
+        ]);
     }
 }

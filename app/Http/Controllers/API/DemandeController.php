@@ -135,7 +135,10 @@ class DemandeController extends Controller
             return response()->json(['message' => 'Cette demande ne peut plus être refusée.'], 400);
         }
 
-        $this->demandeService->refuser($demande);
+        // Récupération optionnelle du motif (peut être null/absent)
+        $motif = $request->input('motif');
+
+        $this->demandeService->refuser($demande, $motif);
 
         return response()->json(['success' => true, 'message' => 'Demande refusée.', 'demande' => $demande]);
     }
@@ -144,7 +147,14 @@ class DemandeController extends Controller
     {
         $proprietaireId = $this->proprietaireId($request);
 
-        $demandes = Demande::with(['logement', 'locataire'])
+        $demandes = Demande::with([
+            'logement', 
+            'locataire' => function ($query) {
+                $query->withCount(['paiements as total_paiements_payes' => function ($q) {
+                    $q->where('statut', 'payé');
+                }]);
+            }
+        ])
             ->where('proprietaire_id', $proprietaireId)
             ->orderByDesc('date_demande')
             ->get();

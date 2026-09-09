@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\VerificationPaiementController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -16,3 +17,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+// ── Vérification publique de quittance via QR code (aucune auth requise)
+Route::get('/verifier/paiement/{token}', [VerificationPaiementController::class, 'verifier'])
+    ->name('paiement.verifier');

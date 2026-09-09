@@ -7,7 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ProprietaireDashboardResource extends JsonResource
 {
-        public function toArray(Request $request): array
+    public function toArray(Request $request): array
     {
         return [
             'stats_temps_reel' => [
@@ -25,8 +25,24 @@ class ProprietaireDashboardResource extends JsonResource
                 'paiements_attendus' => (int)($this['stats_mois_en_cours']['paiements_attendus'] ?? 0),
                 'revenus_potentiels' => (int)($this['stats_mois_en_cours']['revenus_potentiels'] ?? 0),
                 'paiements_en_retard' => (int)($this['stats_mois_en_cours']['paiements_en_retard'] ?? 0),
+<<<<<<< HEAD
                 'taux_recouvrement' => $this['stats_mois_en_cours']['taux_recouvrement'] ?? 0,
+                'loyers_manuels_du_mois' => (int)($this['stats_mois_en_cours']['loyers_manuels_du_mois'] ?? 0),
+                'afficher_alerte_retention' => (bool)($this['stats_mois_en_cours']['afficher_alerte_retention'] ?? false),
+=======
+                'taux_recouvrement' => (float)($this['stats_mois_en_cours']['taux_recouvrement'] ?? 0),
+>>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
             ],
+            'subscription' => isset($this['subscription'])
+                ? [
+                    'plan' => $this['subscription']['plan'],
+                    'status' => $this['subscription']['status'],
+                    'message' => $this['subscription']['message'],
+                    'limits' => $this['subscription']['limits'],
+                    'is_pro' => $this['subscription']['is_pro'],
+                    'can_publish' => $this['subscription']['can_publish'],
+                ]
+                : null,
         ];
     }
 }

@@ -74,6 +74,7 @@ class WebhookTest extends TestCase
             'proprietaire_id' => $proprietaire->id,
             'plan_id' => $plan->id,
             'status' => 'pending',
+            'amount' => 5000,
             'payment_gateway' => 'paydunya',
             'paydunya_token' => 'sub-token-123',
         ]);
@@ -86,6 +87,7 @@ class WebhookTest extends TestCase
             'statut' => 'en_attente',
             'paydunyatoken' => 'sub-token-123',
             'payment_gateway' => 'paydunya',
+            'mode_paiement' => 'wave',
         ]);
 
         $response = $this->withHeaders($this->getValidHeaders())
@@ -150,18 +152,27 @@ class WebhookTest extends TestCase
         ]);
 
         $logement = Logement::create([
-            'propriete_id' => $propriete->id,
-            'numero' => 'WH1',
-            'typelogement' => 'appartement',
-            'statut_occupe' => 'disponible',
+            'propriete_id'          => $propriete->id,
+            'numero'                => 'WH1',
+            'typelogement'          => 'appartement',
+            'nombre_chambres'       => 2,
+            'nombre_salles_de_bain' => 1,
+            'prix_loyer'            => 150000,
+            'statut_occupe'         => 'disponible',
         ]);
 
         $bail = Bail::create([
-            'logement_id' => $logement->id,
-            'locataire_id' => $locataire->id,
-            'proprietaire_id' => $proprietaire->id,
-            'montant_loyer' => 150000,
-            'statut' => 'en_attente',
+            'logement_id'               => $logement->id,
+            'locataire_id'              => $locataire->id,
+            'proprietaire_id'           => $proprietaire->id,
+            'montant_loyer'             => 150000,
+            'nombre_mois_caution'       => 2,
+            'montant_caution_total'     => 300000,
+            'montant_caution_signature' => 300000,
+            'jour_echeance'             => 5,
+            'date_debut'                => now()->toDateString(),
+            'date_fin'                  => now()->addYear()->toDateString(),
+            'statut'                    => 'en_attente_paiement',
         ]);
 
         $paiement = Paiement::create([
@@ -183,6 +194,7 @@ class WebhookTest extends TestCase
             'statut' => 'en_attente',
             'paydunyatoken' => 'rent-token-123',
             'payment_gateway' => 'paydunya',
+            'mode_paiement' => 'wave',
         ]);
 
         // Mock BailService to prevent real PDF generation and other heavy stuff

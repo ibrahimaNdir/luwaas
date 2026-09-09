@@ -2,10 +2,10 @@
 
 namespace App\Services\Sms;
 
-use App\Contracts\SmsDriverInterface;
+use App\Contracts\SmsProviderInterface;
 use Illuminate\Support\Facades\Log;
 
-class FakeSmsDriver implements SmsDriverInterface
+class FakeSmsDriver implements SmsProviderInterface
 {
     /**
      * Stocke les messages envoyés pour les assertions de tests.

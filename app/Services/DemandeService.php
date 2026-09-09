@@ -68,12 +68,19 @@ class DemandeService
         event(new \App\Events\DemandeAcceptee($demande));
     }
 
-    public function refuser(Demande $demande): void
+    public function refuser(Demande $demande, string $motif = null): void
     {
-        $demande->update([
+        $updateData = [
             'status'    => 'refusee',
-            'date_refus' => now(),  // ← à ajouter
-        ]);
+            'date_refus' => now(),
+        ];
+
+        // Seulement ajouter le motif si fourni (optionnel)
+        if ($motif !== null) {
+            $updateData['motif_refus'] = $motif;
+        }
+
+        $demande->update($updateData);
 
         event(new \App\Events\DemandeRefusee($demande));
     }
@@ -126,7 +133,6 @@ class DemandeService
             $demande->update([
                 'status'      => 'refusee',
                 'date_refus'   => now(),
-                'motif_refus'  => 'other_lease_created',
             ]);
 
             event(new \App\Events\DemandeRefusee($demande));

@@ -111,4 +111,13 @@ return [
         'key' => env('FCM_SERVER_KEY'),
     ],
 
+    
+/*
+     * Geocoding service (Nominatim/OpenStreetMap with cache)
+     */
+    'geocoding' => [
+        'api_url' => env('GEOCODING_API_URL', 'https://nominatim.openstreetmap.org/search'),
+        'cache_minutes' => env('GEOCODING_CACHE_MINUTES', 1440), // 24h
+    ],
+
 ];

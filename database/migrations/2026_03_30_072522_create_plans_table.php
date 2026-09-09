@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('billing_cycle')->nullable();
             // Valeurs : null (free) | monthly | yearly
 
-            $table->decimal('price_xof', 10, 2)->default(0);
+            $table->decimal('price_xof', 10, 2)->nullable()->default(0);
             // Prix en FCFA — 0 pour le plan free
 
             $table->unsignedInteger('publications_max')->nullable();

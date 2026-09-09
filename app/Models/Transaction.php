@@ -12,9 +12,9 @@ class Transaction extends Model
         'paiement_id',
         'subscription_id',
         'reference',
-        'paydunyatoken',
-        'lien_paiement',   // ← à ajouter
-        'expire_at',       // ← à ajouter
+        'gateway_token',
+        'payment_url',
+        'expire_at',
         'mode_paiement',
         'montant',
         'statut',
@@ -28,7 +28,7 @@ class Transaction extends Model
     protected $casts = [
         'metadata'         => 'array',
         'date_transaction' => 'datetime',
-        'expire_at'        => 'datetime',  // ← à ajouter
+        'expire_at'        => 'datetime',
     ];
 
     public function paiement()

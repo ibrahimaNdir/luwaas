@@ -24,7 +24,7 @@ class ProprieteRequest extends FormRequest
     {
         return [
             'titre'         => 'required|string|max:255',
-            'type'          => 'required|in:maison,immeuble,villa',
+            'type'          => 'required|in:maison,immeuble,villa,appartement,local_commercial,bureau,magasin',
             'description'   => 'nullable|string',
             'region_id'     => 'required|exists:regions,id',
             'departement_id'=> 'required|exists:departements,id',

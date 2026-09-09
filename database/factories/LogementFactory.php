@@ -18,7 +18,7 @@ class LogementFactory extends Factory
         return [
             'propriete_id'         => Propriete::factory(),
             'numero'               => fake()->unique()->bothify('##?'),
-            'typelogement'         => fake()->randomElement(['studio', 'appartement', 'maison', 'villa']),
+            'typelogement'         => fake()->randomElement(['studio', 'appartement', 'maison', 'villa', 'chambre', 'bureau', 'local_commercial', 'magasin']),
             'superficie'           => fake()->numberBetween(20, 200),
             'nombre_chambres'      => fake()->numberBetween(1, 5),
             'nombre_salles_de_bain'=> fake()->numberBetween(1, 3),

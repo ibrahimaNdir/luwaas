@@ -8,16 +8,16 @@ use Illuminate\Database\Eloquent\Collection;
 
 class TransactionService
 {
-  
+
     // STATUT ABONNEMENT
-    
+
     public function statutAbonnement(Proprietaire $proprietaire): array
     {
         return $proprietaire->subscriptionSummary();
     }
 
     // QUERIES
-    
+
     public function getTransactionsLocataire(int $locataireId): Collection
     {
         return Transaction::with('paiement.bail.logement')
@@ -57,7 +57,7 @@ class TransactionService
     }
 
     // FORMATAGE
-  
+
     public function formatPourListe(Transaction $t): array
     {
         $data = [
@@ -97,7 +97,7 @@ class TransactionService
                 'id'                => $t->id,
                 'type'              => $t->type,
                 'reference'         => $t->reference,
-                'paydunyatoken'     => $t->paydunyatoken,
+                'gateway_token'     => $t->gateway_token,
                 'mode_paiement'     => $t->mode_paiement,
                 'montant'           => $t->montant,
                 'statut'            => $t->statut,
