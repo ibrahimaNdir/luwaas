@@ -4,16 +4,19 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class RenamePaydunyatokenToGatewayToken extends Migration
+return new class extends Migration
 {
     /**
      * Run the migrations.
      */
     public function up(): void
     {
-        Schema::table('transactions', function (Blueprint $table) {
-            $table->renameColumn('paydunyatoken', 'gateway_token');
-        });
+        // Check if the old column exists before trying to rename it
+        if (Schema::hasColumn('transactions', 'paydunyatoken')) {
+            Schema::table('transactions', function (Blueprint $table) {
+                $table->renameColumn('paydunyatoken', 'gateway_token');
+            });
+        }
     }
 
     /**
@@ -21,8 +24,11 @@ class RenamePaydunyatokenToGatewayToken extends Migration
      */
     public function down(): void
     {
-        Schema::table('transactions', function (Blueprint $table) {
-            $table->renameColumn('gateway_token', 'paydunyatoken');
-        });
+        // Check if the new column exists before trying to rename it back
+        if (Schema::hasColumn('transactions', 'gateway_token')) {
+            Schema::table('transactions', function (Blueprint $table) {
+                $table->renameColumn('gateway_token', 'paydunyatoken');
+            });
+        }
     }
-}
+};

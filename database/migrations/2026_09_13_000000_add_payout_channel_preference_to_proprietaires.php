@@ -11,9 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('proprietaires', function (Blueprint $table) {
-            $table->enum('payout_channel_preference', ['wave', 'orange_money', 'free_money', 'bank_transfer'])->nullable()->after('telephone');
-        });
+        // Check if column doesn't exist before adding it
+        if (!Schema::hasColumn('proprietaires', 'payout_channel_preference')) {
+            Schema::table('proprietaires', function (Blueprint $table) {
+                $table->enum('payout_channel_preference', ['wave', 'orange_money', 'free_money', 'bank_transfer'])->nullable()->after('telephone');
+            });
+        }
     }
 
     /**
@@ -21,8 +24,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('proprietaires', function (Blueprint $table) {
-            $table->dropColumn('payout_channel_preference');
-        });
+        // Check if column exists before dropping it
+        if (Schema::hasColumn('proprietaires', 'payout_channel_preference')) {
+            Schema::table('proprietaires', function (Blueprint $table) {
+                $table->dropColumn('payout_channel_preference');
+            });
+        }
     }
 };
