@@ -2,6 +2,8 @@
 
 namespace App\Gateways;
 
+use Illuminate\Http\Request;
+
 /**
  * Interface for payment gateway implementations.
  */
@@ -35,4 +37,26 @@ interface PaymentGatewayInterface
      * @return string Gateway identifier (e.g., 'paydunya', 'bictorys')
      */
     public function getName(): string;
+
+    /**
+     * Verify the authenticity of an incoming webhook.
+     *
+     * @param  Request $request  The HTTP webhook request
+     * @return bool              true if the signature is valid
+     */
+    public function verifyWebhook(Request $request): bool;
+
+    /**
+     * Normalize the webhook payload into a standard format,
+     * independent of the aggregator.
+     *
+     * @param  Request $request
+     * @return array [
+     *     'token'           => string,   // unique identifier of the transaction at the gateway
+     *     'status'          => string,   // 'completed' | 'failed' | 'cancelled' | 'pending'
+     *     'amount'          => float,    // received amount
+     *     'transaction_ref' => string,   // gateway internal reference
+     * ]
+     */
+    public function normalizeWebhookPayload(Request $request): array;
 }

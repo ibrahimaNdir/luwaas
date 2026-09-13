@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('proprietaires', function (Blueprint $table) {
-            $table->dropColumn(['solde_credit']);
+            $table->enum('payout_channel_preference', ['wave', 'orange_money', 'free_money', 'bank_transfer'])->nullable()->after('telephone');
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('proprietaires', function (Blueprint $table) {
-            $table->decimal('solde_credit', 15, 2)->default(0);
+            $table->dropColumn('payout_channel_preference');
         });
     }
 };

@@ -4,15 +4,20 @@ namespace App\Services;
 
 use App\Models\Payout;
 use App\Services\GatewayResolver;
+use App\Services\PhoneNumberFormatter;
+use App\Models\Proprietaire;
 use Illuminate\Support\Facades\Log;
+use App\Constants\PaymentStatus;
 
 class PayoutProcessorService
 {
     protected GatewayResolver $gatewayResolver;
+    protected NotificationService $notificationService;
 
-    public function __construct(GatewayResolver $gatewayResolver)
+    public function __construct(GatewayResolver $gatewayResolver, NotificationService $notificationService)
     {
         $this->gatewayResolver = $gatewayResolver;
+        $this->notificationService = $notificationService;
     }
 
     /**
@@ -25,7 +30,7 @@ class PayoutProcessorService
     public function processPayout(Payout $payout): array
     {
         // Marquer comme en cours de traitement
-        $payout->update(['status' => 'processing']);
+        $payout->update(['status' => PaymentStatus::PAYOUT_PROCESSING]);
 
         try {
             // Utiliser l'agrégateur actif configuré pour garantir que payin et payout utilisent le même agrégateur
@@ -43,25 +48,12 @@ class PayoutProcessorService
             // Préparer les données pour l'appel au gateway
             $amount = (float) $payout->net_amount_to_owner;
             $reference = $payout->reference;
-            $phoneNumber = $payoutMethod->payout_phone;
-            $channel = $payoutMethod->payout_channel;
 
-            // Format du numéro de téléphone (devrait déjà être en format E.164)
-            // S'assurer que le numéro commence par le code pays du Sénégal (+221)
-            if (!preg_match('/^\+221/', $phoneNumber)) {
-                // Si le numéro commence par 0, remplacer par +221
-                if (preg_match('/^0/', $phoneNumber)) {
-                    $phoneNumber = '+221' . substr($phoneNumber, 1);
-                }
-                // Si le numéro commence par 221 mais sans +, ajouter le +
-                elseif (preg_match('/^221/', $phoneNumber)) {
-                    $phoneNumber = '+' . $phoneNumber;
-                }
-                // Sinon, ajouter +221 au début
-                else {
-                    $phoneNumber = '+221' . $phoneNumber;
-                }
-            }
+            // Résoudre le numéro de téléphone et le canal de versement
+            $phoneNumber = $this->resolvePayoutPhone($payoutMethod, $payout->proprietaire);
+            $channel = $this->resolvePayoutChannel($payoutMethod, $payout->proprietaire);
+
+            $phoneNumber = PhoneNumberFormatter::formatE164($phoneNumber);
 
             // Effectuer le versement via le gateway approprié
             $payoutResult = $gateway->processPayout($amount, $phoneNumber, $reference, $channel);
@@ -69,7 +61,7 @@ class PayoutProcessorService
             if ($payoutResult['success']) {
                 // Marquer comme complété
                 $payout->update([
-                    'status' => 'completed',
+                    'status' => PaymentStatus::PAYOUT_COMPLETED,
                     'processed_at' => now(),
                     'reference' => $payoutResult['external_reference'] ?? $payout->reference,
                 ]);
@@ -77,7 +69,7 @@ class PayoutProcessorService
                 Log::info("Versement {$payout->id} effectué avec succès via {$gatewayKey}", [
                     'proprietaire_id' => $payout->proprietaire_id,
                     'amount' => $payout->net_amount_to_owner,
-                    'method' => $payout->payoutMethod->payout_channel,
+                    'method' => $channel,
                     'gateway' => $gatewayKey,
                     'reference' => $payout->reference,
                 ]);
@@ -100,7 +92,7 @@ class PayoutProcessorService
                 ];
             } else {
                 // Échec du versement
-                $payout->update(['status' => 'failed']);
+                $payout->update(['status' => PaymentStatus::PAYOUT_FAILED]);
                 Log::error("Échec du versement {$payout->id} via {$gatewayKey}", [
                     'proprietaire_id' => $payout->proprietaire_id,
                     'error' => $payoutResult['error'] ?? 'Inconnu',
@@ -113,7 +105,7 @@ class PayoutProcessorService
                 ];
             }
         } catch (\Exception $e) {
-            $payout->update(['status' => 'failed']);
+            $payout->update(['status' => PaymentStatus::PAYOUT_FAILED]);
             Log::error("Exception lors du traitement du versement {$payout->id}", [
                 'proprietaire_id' => $payout->proprietaire_id,
                 'exception' => $e->getMessage(),
@@ -127,6 +119,74 @@ class PayoutProcessorService
     }
 
     /**
+     * Résout le numéro de téléphone de versement à utiliser
+     * Priorité:
+     * 1. Número explicite dans la méthode de versement
+     * 2. Téléphone préféré du propriétaire
+     * 3. Téléphone legacy du propriétaire
+     * 4. Téléphone par défaut du système (devrait être géré ailleurs)
+     *
+     * @param \App\Models\PayoutMethod $payoutMethod
+     * @param \App\Models\Proprietaire $proprietaire
+     * @return string
+     */
+    private function resolvePayoutPhone(\App\Models\PayoutMethod $payoutMethod, Proprietaire $proprietaire): string
+    {
+        // 1. Número explicite défini pour cette méthode de versement (priorité haute)
+        if (!empty($payoutMethod->payout_phone)) {
+            return $payoutMethod->payout_phone;
+        }
+
+        // 2. Téléphone préféré du propriétaire (nouveau champ)
+        if (!empty($proprietaire->payout_phone)) {
+            return $proprietaire->payout_phone;
+        }
+
+        // 3. Téléphone legacy du propriétaire (rétrocompatibilité)
+        if (!empty($proprietaire->payout_phone)) {
+            return $proprietaire->payout_phone;
+        }
+
+        // 4. Fallback: devrait normalement jamais arriver si le modèle est correctement configuré
+        // Mais on retourne une chaîne vide pour éviter les erreurs, le formatter gérera l'erreur
+        return '';
+    }
+
+    /**
+     * Résout le canal de versement à utiliser
+     * Priorité:
+     * 1. Canal explicite dans la méthode de versement (override manuel pour ce versement spécifique)
+     * 2. Préférence de canal du propriétaire (nouveau champ préférence)
+     * 3. Canal legacy du propriétaire (rétrocompatibilité avec champ existant)
+     * 4. Canal du paiement entrant (optionnel logique - à implémenter si lié à la transaction)
+     * 5. Canal par défaut du système
+     *
+     * @param \App\Models\PayoutMethod $payoutMethod
+     * @param \App\Models\Proprietaire $proprietaire
+     * @return string
+     */
+    private function resolvePayoutChannel(\App\Models\PayoutMethod $payoutMethod, Proprietaire $proprietaire): string
+    {
+        // 1. Canal explicite défini pour cette méthode de versement (priorité haute - permet override manuel)
+        if (!empty($payoutMethod->payout_channel)) {
+            return $payoutMethod->payout_channel;
+        }
+
+        // 2. Préférence de canal du propriétaire (nouveau champ - ce qu'on implémente)
+        if (!empty($proprietaire->payout_channel_preference)) {
+            return $proprietaire->payout_channel_preference;
+        }
+
+        // 3. Canal legacy du propriétaire (rétrocompatibilité avec champ existant)
+        if (!empty($proprietaire->payout_channel)) {
+            return $proprietaire->payout_channel;
+        }
+
+        // 4. Fallback système global (configuration par défaut)
+        return config('payout.default_channel', 'wave');
+    }
+
+    /**
      * Traite tous les versements en attente
      * À appeler via une tâche planifiée (cron) ou un déclencheur
      *
@@ -134,7 +194,7 @@ class PayoutProcessorService
      */
     public function processAllPendingPayouts(): array
     {
-        $pendingPayouts = Payout::where('status', 'pending')->get();
+        $pendingPayouts = Payout::where('status', PaymentStatus::PAYOUT_PENDING)->get();
         $results = [];
 
         foreach ($pendingPayouts as $payout) {
@@ -167,14 +227,8 @@ class PayoutProcessorService
      */
     protected function sendPayoutNotification(Payout $payout): void
     {
-        // Cette méthode nécessite un service de notification
-        // Vous pouvez l'implémenter selon votre système de notification existant
-        // Exemple avec un service de notification générique :
-
-        /*
-        if (app()->bound('notification.service')) {
-            $notificationService = app('notification.service');
-            $notificationService->send(
+        try {
+            $this->notificationService->sendToUser(
                 $payout->proprietaire->user,
                 'Versement effectué 💰',
                 'Un versement de ' . number_format($payout->net_amount_to_owner, 0, ',', ' ') . ' FCFA a été effectué sur votre compte ' .
@@ -187,15 +241,12 @@ class PayoutProcessorService
                     'date' => $payout->processed_at->format('d/m/Y'),
                 ]
             );
+        } catch (\Exception $e) {
+            // Ne pas faire échouer le traitement si la notification échoue
+            Log::warning("Échec de l'envoi de notification de versement {$payout->id}", [
+                'payout_id' => $payout->id,
+                'exception' => $e->getMessage(),
+            ]);
         }
-        */
-
-        // Pour l'instant, on laisse vide - à implémenter selon votre système
-        // Ou on peut simplement logger l'information
-        Log::info("Notification de versement envoyée (à implémenter)", [
-            'payout_id' => $payout->id,
-            'proprietaire_id' => $payout->proprietaire_id,
-            'amount' => $payout->net_amount_to_owner,
-        ]);
     }
 }

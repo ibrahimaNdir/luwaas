@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('proprietaires', function (Blueprint $table) {
-            $table->decimal('solde_credit', 15, 2)->default(0)->after('subscription_ends_at');
+            $table->dropColumn('solde_credit');
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('proprietaires', function (Blueprint $table) {
-            $table->dropColumn(['solde_credit']);
+            $table->decimal('solde_credit', 15, 2)->default(0)->after('subscription_ends_at');
         });
     }
 };

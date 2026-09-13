@@ -50,6 +50,13 @@ return [
     'mode'        => env('PAYDUNYA_MODE', 'test'),
 ],
 
+    'bictorys' => [
+        'master_key' => env('BICTORYS_MASTER_KEY'),
+        'api_key'    => env('BICTORYS_API_KEY'),
+        'private_key'=> env('BICTORYS_PRIVATE_KEY'),
+        'webhook_secret' => env('BICTORYS_WEBHOOK_SECRET'),
+    ],
+
 'whatsapp' => [
     'token'           => env('WHATSAPP_TOKEN'),
     'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),

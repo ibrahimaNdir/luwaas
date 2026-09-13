@@ -171,4 +171,87 @@ class PayDunyaGateway implements PaymentGatewayInterface
     {
         return 'paydunya';
     }
+
+    /**
+     * Verify the authenticity of an incoming PayDunya webhook.
+     *
+     * @param  Request $request  The HTTP webhook request
+     * @return bool              true if the signature is valid
+     */
+    public function verifyWebhook(Request $request): bool
+    {
+        $masterKey = config('services.paydunya.master_key');
+
+        if (!$masterKey) {
+            Log::error('PayDunya master key missing in configuration');
+            return false;
+        }
+
+        $expectedHash = hash('sha512', $masterKey);
+
+        // PayDunya sends the key in the PAYDUNYA-MASTER-KEY header
+        $headerHash = $request->header('PAYDUNYA-MASTER-KEY');
+
+        if ($headerHash && hash_equals($expectedHash, $headerHash)) {
+            return true;
+        }
+
+        // Also check in payload as fallback (some webhook formats)
+        $payloadHash = $request->input('data.hash');
+        if ($payloadHash && hash_equals($expectedHash, $payloadHash)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize the PayDunya webhook payload into a standard format.
+     *
+     * @param  Request $request
+     * @return array [
+     *     'token'           => string,
+     *     'status'          => string,
+     *     'amount'          => float,
+     *     'transaction_ref' => string,
+     * ]
+     */
+    public function normalizeWebhookPayload(Request $request): array
+    {
+        $token = $request->input('data.invoice.token')
+            ?? $request->input('data.token')
+            ?? $request->input('token')
+            ?? '';
+
+        $rawStatus = $request->input('data.status')
+            ?? $request->input('status')
+            ?? '';
+
+        // Normalize PayDunya statuses to standard Luwaas statuses
+        $status = match (strtolower($rawStatus)) {
+            'completed'  => 'completed',
+            'cancelled'  => 'cancelled',
+            'failed'     => 'failed',
+            'pending'    => 'pending',
+            default      => $rawStatus,
+        };
+
+        $amount = (float) (
+            $request->input('data.invoice.total_amount')
+            ?? $request->input('data.total_amount')
+            ?? $request->input('total_amount')
+            ?? 0
+        );
+
+        $transactionRef = $request->input('data.transaction_id')
+            ?? $request->input('transaction_id')
+            ?? $token;
+
+        return [
+            'token'           => $token,
+            'status'          => $status,
+            'amount'          => $amount,
+            'transaction_ref' => $transactionRef,
+        ];
+    }
 }

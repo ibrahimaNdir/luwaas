@@ -183,4 +183,93 @@ class BictorysGateway implements PaymentGatewayInterface
     {
         return 'bictorys';
     }
+
+    /**
+     * Verify the authenticity of an incoming Bictorys webhook.
+     *
+     * @param  Request $request  The HTTP webhook request
+     * @return bool              true if the signature is valid
+     */
+    public function verifyWebhook(Request $request): bool
+    {
+        $webhookSecret = config('services.bictorys.webhook_secret');
+
+        if (!$webhookSecret) {
+            Log::error('Bictorys webhook secret missing in configuration');
+            return false;
+        }
+
+        // Get the raw payload
+        $payload = $request->getContent();
+        if (!$payload) {
+            Log::warning('Empty payload received for Bictorys webhook');
+            return false;
+        }
+
+        // Get the signature from headers
+        $signature = $request->header('BICTORYS-SIGNATURE');
+        if (!$signature) {
+            Log::warning('BICTORYS-SIGNATURE header missing in webhook request');
+            return false;
+        }
+
+        // Compute HMAC-SHA256 of the payload using the webhook secret
+        $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
+
+        // Compare signatures using hash_equals to prevent timing attacks
+        return hash_equals($expectedSignature, $signature);
+    }
+
+    /**
+     * Normalize the Bictorys webhook payload into a standard format.
+     *
+     * @param  Request $request
+     * @return array [
+     *     'token'           => string,
+     *     'status'          => string,
+     *     'amount'          => float,
+     *     'transaction_ref' => string,
+     * ]
+     */
+    public function normalizeWebhookPayload(Request $request): array
+    {
+        $token = $request->input('data.token')
+            ?? $request->input('transaction_token')
+            ?? $request->input('token')
+            ?? '';
+
+        $rawStatus = $request->input('data.status')
+            ?? $request->input('status')
+            ?? '';
+
+        // Normalize Bictorys statuses to standard Luwaas statuses
+        // This mapping would need to be adjusted based on actual Bictorys status values
+        $status = match (strtolower($rawStatus)) {
+            'completed', 'success', 'settled' => 'completed',
+            'cancelled', 'canceled'           => 'cancelled',
+            'failed', 'error', 'declined'     => 'failed',
+            'pending', 'processing'           => 'pending',
+            default                           => $rawStatus,
+        };
+
+        $amount = (float) (
+            $request->input('data.amount')
+            ?? $request->input('transaction_amount')
+            ?? $request->input('amount')
+            ?? 0
+        );
+
+        $transactionRef = $request->input('data.transaction_id')
+            ?? $request->input('external_id')
+            ?? $request->input('reference')
+            ?? $request->input('id')
+            ?? $token;
+
+        return [
+            'token'           => $token,
+            'status'          => $status,
+            'amount'          => $amount,
+            'transaction_ref' => $transactionRef,
+        ];
+    }
 }

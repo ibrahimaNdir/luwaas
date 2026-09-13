@@ -24,10 +24,9 @@ class WebhookController extends Controller
         $path = $request->path();
         $gatewayKey = 'paydunya'; // Par défaut pour la compatibilité arrière
 
-        $result = $this->webhookService->handle($request);
-        if (str_contains($path, '/webhook/bictorys')) {
+        if ($path === '/webhook/bictorys') {
             $gatewayKey = 'bictorys';
-        } elseif (str_contains($path, '/webhook/paydunya')) {
+        } elseif ($path === '/webhook/paydunya') {
             $gatewayKey = 'paydunya';
         }
 
@@ -35,17 +34,12 @@ class WebhookController extends Controller
 
         // Créer une instance du service webhook spécifique au gateway
         $webhookService = new WebhookService(
-            app(\App\Services\BailService::class),
-            app(\App\Services\LandlordEarningsService::class),
-            app(\App\Services\PayoutProcessorService::class),
+            app(AppServicesBailService::class),
+            app(AppServicesLandlordEarningsService::class),
+            app(AppServicesPayoutProcessorService::class),
+            app(AppServicesGatewayResolver::class),
             $gatewayKey
         );
-
-        if (!$webhookService->verifierSignature($request)) {
-            Log::warning("⚠️ Signature {$gatewayKey} invalide");
-            return response()->json(['error' => 'Invalid signature'], 401);
-        }
-
         $result = $webhookService->handle($request);
 
         $status = $result['status'] ?? 200;

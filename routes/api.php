@@ -22,6 +22,7 @@ use App\Http\Controllers\API\Admin\AdminDemandeController;
 use App\Http\Controllers\API\Admin\AdminUserController;
 use App\Http\Controllers\API\Admin\AdminPaymentController;
 use App\Http\Controllers\API\Admin\AdminTicketController;
+use App\Http\Controllers\API\Admin\AdminLocataireController;
 use App\Http\Controllers\API\TicketController;
 
 use App\Http\Controllers\API\PayoutController; // Added
@@ -143,7 +144,7 @@ Route::middleware(['auth:sanctum', 'admin'])
 Route::middleware(['auth:sanctum', 'proprietaire'])->group(function () {
     Route::get('/abonnements/statut',      [TransactionController::class, 'statutAbonnement']);
     Route::post('/abonnements/initier',    [PaymentController::class, 'initierAbonnement']);
-    Route::post('/abonnements/annuler',    [PaymentController::class, 'annilerAbonnement']);
+    Route::post('/abonnements/annuler',    [PaymentController::class, 'annulerAbonnement']);
     Route::post('/abonnements/renouveler', [PaymentController::class, 'renouvelerAbonnement']);
     //Route::get('/abonnements/historique',  [TransactionController::class, 'indexProprietaire']);
 });
@@ -236,7 +237,14 @@ Route::middleware(['auth:sanctum', 'proprietaire', 'subscribed'])
         Route::get('/payouts/{id}', [PayoutController::class, 'show']);
         Route::get('/earnings', [PayoutController::class, 'currentEarnings']);
 
-        // LOCATAIRE LIST
+// Gestion des méthodes de versement des propriétaires
+        Route::apiResource('payout-methods', PayoutMethodController::class)
+            ->except(['show']);  // Nous utilisons setDefault à la place
+
+        Route::post('payout-methods/{id}/set-as-default', [PayoutMethodController::class, 'setDefault'])
+            ->name('payout-methods.set-as-default');
+
+// LOCATAIRE LIST
         Route::get('/locataires', [PropertyController::class, 'allLocataires']);
     });
 
@@ -299,5 +307,4 @@ Route::middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::prefix('admin')->group(function () {
         Route::get('/bailleurs/ratio-paiements', [\App\Http\Controllers\API\AdminDashboardController::class, 'ratioPaiements']);
     });
-  });
 });

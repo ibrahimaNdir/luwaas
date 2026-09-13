@@ -24,4 +24,22 @@ return [
     */
     'active_gateway' => env('PAYMENT_GATEWAY', 'paydunya'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Payment timeout settings
+    |--------------------------------------------------------------------------
+    | Configurable expiration times for payment transactions
+    */
+    'payment_timeout_minutes' => (int) env('PAYMENT_TIMEOUT_MINUTES', 30),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sandbox specific settings
+    |--------------------------------------------------------------------------
+    | Overrides for sandbox/testing environment
+    */
+    'sandbox' => [
+        'payment_timeout_minutes' => (int) env('SANDBOX_PAYMENT_TIMEOUT_MINUTES', 2),
+    ],
+
 ];

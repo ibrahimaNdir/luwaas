@@ -3,13 +3,13 @@
 namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
-use App\Traits\Subscribable;         
+use App\Traits\Subscribable;
 use Illuminate\Database\Eloquent\Model;
 
 class Proprietaire extends Model
 {
     use Subscribable   , HasFactory;
-    
+
     /**
      * @property string|null $subscription_status
      * @property string|null $plan
@@ -22,14 +22,14 @@ class Proprietaire extends Model
         'user_id',
         'proprietaire_id',
         'is_actif',
-        'subscription_status',        // 
-        'subscription_ends_at',       // 
-        'plan',                       // 
+        'subscription_status',        //
+        'subscription_ends_at',       //
+        'plan',                       //
         'billing_cycle',              //
-        'cancelled_at',               // 
+        'cancelled_at',               //
         'payout_channel',
         'payout_phone',
-        'solde_credit',
+        'payout_channel_preference',
     ];
 
     protected $casts = [
@@ -62,7 +62,6 @@ class Proprietaire extends Model
             ->where('status', 'active')
             ->latest();                     // ✅ ajout
     }
-
 
 
     public function logements()

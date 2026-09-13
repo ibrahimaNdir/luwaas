@@ -54,11 +54,13 @@ class SystemConfigService
             })
             ->first();
 
-        return $rate ? (float)$rate->rate_percent : 0.035; // 3.5% par défaut si pas trouvé
+        if ($rate === null) {
+            throw new \App\Exceptions\PspFeeNotFoundException(
+                "Aucun taux PSP trouvé pour gateway=unknown, operator={$operator}, operation_type=unknown"
+            );
+        }
+
+        return (float)$rate->rate_percent;
     }
 
-    public function getPlatformFixedFee(): float
-    {
-        return (float) $this->get('commission_fixe_luwaas', 1000); // 1000 FCFA par défaut
     }
-}

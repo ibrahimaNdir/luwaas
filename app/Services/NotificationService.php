@@ -7,23 +7,24 @@ use App\Contracts\SmsProviderInterface;
 use Kreait\Firebase\Contract\Firestore;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Messaging\MessageData;
 use Kreait\Firebase\Messaging\Notification;
 use Google\Cloud\Core\Timestamp;
 use Illuminate\Support\Facades\Log;
+use App\Models\User;
 use App\Models\NotificationDeadLetter;
 
 class NotificationService
 {
-<<<<<<< HEAD
     use Loggable;
 
-    protected $messaging;
-    protected $firestore;
-    protected $sms;
-=======
     protected Messaging $messaging;
     protected Firestore $firestore;
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
+    protected $sms;
+
+    // FCM error statuses that indicate invalid token
+    private const INVALID_FCM_STATUSES = ['NOT_REGISTERED', 'INVALID_ARGUMENT'];
+    private const INVALID_FCM_MESSAGE_PATTERNS = ['InvalidRegistration', 'NotRegistered'];
 
     public function __construct(Messaging $messaging, Firestore $firestore, SmsProviderInterface $sms)
     {
@@ -33,19 +34,19 @@ class NotificationService
     }
 
     /**
-     * ✅ Envoie une notification à un utilisateur (FCM + Firestore)
+     * Send a notification to a user (FCM + Firestore)
      *
-     * @param \App\Models\User $user L'utilisateur destinataire
-     * @param string $title Titre de la notification
-     * @param string $body Corps du message
-     * @param string $type Type de notification (demande_recue, demande_acceptee, etc.)
-     * @param array $data Données additionnelles (optionnel)
-     * @return bool Succès ou échec
+     * @param \App\Models\User $user The recipient user
+     * @param string $title Notification title
+     * @param string $body Notification body
+     * @param string $type Notification type (e.g., demande_recue, demande_acceptee)
+     * @param array $data Additional data (optional)
+     * @return bool Success if at least one method succeeded
      */
-    public function sendToUser($user, $title, $body, $type, array $data = [])
+    public function sendToUser(User $user, string $title, string $body, string $type, array $data = []): bool
     {
         if (!$user) {
-            $this->logDev('warning', "NotificationService: Utilisateur null");
+            $this->logDev('warning', "NotificationService: Utilisateur nul");
             return false;
         }
 
@@ -54,108 +55,61 @@ class NotificationService
         $maxAttempts = 3;
         $delayMs = 100; // base delay in milliseconds
 
-        // 1. ✅ Envoyer le Push Notification (FCM) avec retry
+        // 1. Send Push Notification (FCM) with retry
         $token = $user->fcm_token;
         if ($token) {
-<<<<<<< HEAD
-            try {
-                $message = CloudMessage::withTarget('token', $token)
-                    ->withNotification(Notification::create($title, $body))
-                    ->withData(array_merge([
-                        'type' => $type,
-                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK', // ✅ Pour Flutter
-                    ], $data));
-                
-                $this->messaging->send($message);
-                $fcmSent = true;
-                $this->logDev('info', "✅ FCM envoyé à user {$user->id}");
-            } catch (\Exception $e) {
-                $this->logDev('warning', "❌ Erreur FCM user {$user->id}: " . $e->getMessage());
-=======
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
                 try {
-                    $message = CloudMessage::withTarget('token', $token)
+                    $message = CloudMessage::withToken($token)
                         ->withNotification(Notification::create($title, $body))
-                        ->withData(array_merge([
+                        ->withData(MessageData::fromArray(array_merge([
                             'type' => $type,
-                            'click_action' => 'FLUTTER_NOTIFICATION_CLICK', // ✅ Pour Flutter
-                        ], $data));
+                            'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                        ], $data)));
 
                     $response = $this->messaging->send($message);
 
-                    // Vérifier les erreurs spécifiques FCM pour détecter les tokens invalides
                     if ($response->getFailureCount() > 0) {
                         foreach ($response->getResponses() as $resp) {
                             $status = $resp->getError()->getStatusCode() ?? '';
                             $messageError = $resp->getError()->getMessage() ?? '';
 
-                            // Tokens invalides ou non enregistrés
-                            if ($status === 'NOT_REGISTERED' ||
-                                $status === 'INVALID_ARGUMENT' ||
-                                str_contains($messageError, 'InvalidRegistration') ||
-                                str_contains($messageError, 'NotRegistered')) {
+                            if (in_array($status, self::INVALID_FCM_STATUSES, true) ||
+                                preg_match('/' . implode('|', self::INVALID_FCM_MESSAGE_PATTERNS) . '/', $messageError)) {
                                 $this->markFcmTokenAsInvalid($user->id, $token);
-                                Log::info("🔇 Token FCM invalide détecté et marqué pour user {$user->id}");
-                                // After marking invalid, no point retrying same token
-                                $attempt = $maxAttempts; // will exit loop after this iteration
-                                break 2; // break out of both foreach and for loop
+                                $this->logDev('info', "Token FCM invalide détecté et marqué pour l'utilisateur {$user->id}");
+                                $attempt = $maxAttempts;
+                                break 2;
                             }
                         }
                     }
 
                     $fcmSent = true;
-                    Log::info("✅ FCM envoyé à user {$user->id} (tentative {$attempt})");
-                    break; // Success, exit retry loop
+                    $this->logDev('info', "FCM envoyé à l'utilisateur {$user->id} (tentative {$attempt})");
+                    break;
                 } catch (\Exception $e) {
-                    // Gestion spécifique des erreurs FCM
                     $statusCode = $e->getCode() ?? '';
                     $messageError = $e->getMessage() ?? '';
 
-                    if ($statusCode === 'NOT_REGISTERED' ||
-                        $statusCode === 'INVALID_ARGUMENT' ||
-                        str_contains($messageError, 'NotRegistered') ||
-                        str_contains($messageError, 'InvalidRegistration')) {
+                    if (in_array($statusCode, self::INVALID_FCM_STATUSES, true) ||
+                        preg_match('/' . implode('|', self::INVALID_FCM_MESSAGE_PATTERNS) . '/', $messageError)) {
                         $this->markFcmTokenAsInvalid($user->id, $token);
-                        Log::info("🔇 Token FCM invalide détecté et marqué pour user {$user->id}");
-                        // Break out of retry loop as token is invalid
+                        $this->logDev('info', "Token FCM invalide détecté et marqué pour l'utilisateur {$user->id}");
                         break;
                     } else {
-                        Log::warning("❌ Erreur FCM user {$user->id} (tentative {$attempt}): " . $e->getMessage());
-                        // If not last attempt, wait before retrying
+                        Log::warning("Erreur FCM pour l'utilisateur {$user->id} (tentative {$attempt}) : " . $e->getMessage());
                         if ($attempt < $maxAttempts) {
-                            usleep($delayMs * 1000); // convert ms to microseconds
-                            $delayMs *= 2; // exponential backoff
+                            usleep($delayMs * 1000);
+                            $delayMs *= 2;
                         }
                     }
                 }
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
             }
         } else {
-            $this->logDev('info', "⚠️ User {$user->id} n'a pas de FCM token");
+            $this->logDev('info', "L'utilisateur {$user->id} n'a pas de token FCM");
         }
 
-<<<<<<< HEAD
-        // 2. ✅ Sauvegarder dans Firestore (TOUJOURS, même sans FCM token)
-        try {
-            $this->firestore->database()
-                ->collection('users')
-                ->document((string) $user->id)
-                ->collection('notifications')
-                ->add([
-                    'title' => $title,
-                    'body' => $body,
-                    'type' => $type,
-                    'read' => false,
-                    'createdAt' => new Timestamp(new \DateTime()),
-                    'data' => $data,
-                ]);
-            
-            $firestoreSent = true;
-            $this->logDev('info', "✅ Notification Firestore sauvegardée pour user {$user->id}");
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur Firestore user {$user->id}: " . $e->getMessage());
-=======
-        // 2. ✅ Sauvegarder dans Firestore (TOUJOURS, même sans FCM token) avec retry
+        // 2. Save to Firestore (ALWAYS, even without FCM token) with retry
         $maxAttemptsFs = 3;
         $delayMsFs = 100;
         for ($attempt = 1; $attempt <= $maxAttemptsFs; $attempt++) {
@@ -174,11 +128,10 @@ class NotificationService
                     ]);
 
                 $firestoreSent = true;
-                Log::info("✅ Notification Firestore sauvegardée pour user {$user->id} (tentative {$attempt})");
-                break; // Success, exit retry loop
+                $this->logDev('info', "Firestore notification enregistrée pour l'utilisateur {$user->id} (tentative {$attempt})");
+                break;
             } catch (\Exception $e) {
-                Log::error("❌ Erreur Firestore user {$user->id} (tentative {$attempt}): " . $e->getMessage());
-                // If not last attempt, wait before retrying
+                Log::error("Erreur Firestore pour l'utilisateur {$user->id} (tentative {$attempt}) : " . $e->getMessage());
                 if ($attempt < $maxAttemptsFs) {
                     usleep($delayMsFs * 1000);
                     $delayMsFs *= 2;
@@ -189,49 +142,26 @@ class NotificationService
         // If both FCM and Firestore failed, store in dead letter queue
         if (!$fcmSent && !$firestoreSent) {
             $this->storeInDeadLetter($user, $title, $body, $type, $data, $maxAttempts + $maxAttemptsFs);
-            Log::warning("⚠️ Notification stockée dans la file de lettres mortes pour user {$user->id}");
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
+            Log::warning("Notification stockée dans la file d'attente de lettres mortes pour l'utilisateur {$user->id}");
         }
 
-        return $fcmSent || $firestoreSent; // ✅ Retourne true si au moins une méthode a fonctionné
+        return $fcmSent || $firestoreSent;
     }
 
-    /**
-     * Marque un token FCM comme invalide pour éviter les futurs échecs
-     *
-     * @param int $userId
-     * @param string $token
-     * @return void
-     */
     private function markFcmTokenAsInvalid(int $userId, string $token): void
     {
         try {
-            // Mettre à jour l'utilisateur pour NULLifier le token FCM
-            // Ceci évitera les futures tentatives d'envoi avec ce token invalide
-            $userModel = \App\Models\User::find($userId);
+            $userModel = User::find($userId);
             if ($userModel && $userModel->fcm_token === $token) {
                 $userModel->update(['fcm_token' => null]);
-                Log::debug("Token FCM invalidé pour user {$userId}");
+                Log::debug("Jeton FCM invalidé pour l'utilisateur {$userId}");
             }
-
-            // Optionnel: incrémenter un métrique ou logger pour monitoring
-            // Vous pourriez aussi ajouter à une table de nettoyage périodique
         } catch (\Exception $e) {
-            Log::warning("Échec lors de l'invalidation du token FCM pour user {$userId}: " . $e->getMessage());
+            Log::warning("Échec de l'invalidation du jeton FCM pour l'utilisateur {$userId} : " . $e->getMessage());
         }
     }
 
-    /**
-     * ✅ Envoie à plusieurs users (bailleur + locataire)
-     *
-     * @param array $users Tableau d'utilisateurs
-     * @param string $title
-     * @param string $body
-     * @param string $type
-     * @param array $data
-     * @return int Nombre de notifications envoyées avec succès
-     */
-    public function sendToMultipleUsers(array $users, $title, $body, $type, array $data = [])
+    public function sendToMultipleUsers(array $users, $title, $body, $type, array $data = []): int
     {
         $successCount = 0;
 
@@ -241,37 +171,22 @@ class NotificationService
             }
         }
 
-<<<<<<< HEAD
-        $this->logDev('info', "📊 Notifications envoyées : {$successCount}/{count($users)}");
-        
-=======
-        Log::info("📊 Notifications envoyées : {$successCount}/{count($users)}");
+        $this->logDev('info', "Notifications envoyées : {$successCount}/" . count($users));
 
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
         return $successCount;
     }
 
-    /**
-     * Envoie un SMS via le fournisseur configuré
-     */
     public function sendSms(string $to, string $message): bool
     {
         try {
             return $this->sms->send($to, $message);
         } catch (\Exception $e) {
-            Log::error("❌ Erreur lors de l'envoi du SMS à {$to}: " . $e->getMessage());
+            Log::warning("Erreur lors de l'envoi du SMS à {$to} : " . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * ✅ NOUVEAU : Marquer une notification comme lue
-     *
-     * @param int $userId
-     * @param string $notificationId
-     * @return bool
-     */
-    public function markAsRead($userId, $notificationId)
+    public function markAsRead(int $userId, string $notificationId): bool
     {
         try {
             $this->firestore->database()
@@ -283,21 +198,15 @@ class NotificationService
                     ['path' => 'read', 'value' => true]
                 ]);
 
-            $this->logDev('info', "✅ Notification {$notificationId} marquée comme lue pour user {$userId}");
+            $this->logDev('info', "Notification {$notificationId} marquée comme lue pour l'utilisateur {$userId}");
             return true;
         } catch (\Exception $e) {
-            Log::error("❌ Erreur markAsRead: " . $e->getMessage());
+            Log::error("Erreur lors de la marquage de la notification comme lue : " . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * ✅ NOUVEAU : Marquer toutes les notifications comme lues
-     *
-     * @param int $userId
-     * @return int Nombre de notifications mises à jour
-     */
-    public function markAllAsRead($userId)
+    public function markAllAsRead(int $userId): int
     {
         try {
             $notifications = $this->firestore->database()
@@ -315,22 +224,15 @@ class NotificationService
                 $count++;
             }
 
-            $this->logDev('info', "✅ {$count} notifications marquées comme lues pour user {$userId}");
+            $this->logDev('info', "{$count} notifications marquées comme lues pour l'utilisateur {$userId}");
             return $count;
         } catch (\Exception $e) {
-            Log::error("❌ Erreur markAllAsRead: " . $e->getMessage());
+            Log::error("Erreur lors du marquage de toutes les notifications comme lues : " . $e->getMessage());
             return 0;
         }
     }
 
-    /**
-     * ✅ NOUVEAU : Supprimer une notification
-     *
-     * @param int $userId
-     * @param string $notificationId
-     * @return bool
-     */
-    public function deleteNotification($userId, $notificationId)
+    public function deleteNotification(int $userId, string $notificationId): bool
     {
         try {
             $this->firestore->database()
@@ -340,21 +242,15 @@ class NotificationService
                 ->document($notificationId)
                 ->delete();
 
-            $this->logDev('info', "✅ Notification {$notificationId} supprimée pour user {$userId}");
+            $this->logDev('info', "Notification {$notificationId} supprimée pour l'utilisateur {$userId}");
             return true;
         } catch (\Exception $e) {
-            Log::error("❌ Erreur deleteNotification: " . $e->getMessage());
+            Log::error("Erreur lors de la suppression de la notification : " . $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * ✅ NOUVEAU : Compter les notifications non lues
-     *
-     * @param int $userId
-     * @return int
-     */
-    public function getUnreadCount($userId)
+    public function getUnreadCount(int $userId): int
     {
         try {
             $notifications = $this->firestore->database()
@@ -364,24 +260,13 @@ class NotificationService
                 ->where('read', '=', false)
                 ->documents();
 
-            return count($notifications->rows());
+            return count($notifications);
         } catch (\Exception $e) {
-            Log::error("❌ Erreur getUnreadCount: " . $e->getMessage());
+            Log::error("Erreur lors de la récupération du nombre de notifications non lues : " . $e->getMessage());
             return 0;
         }
     }
 
-    /**
-     * Stocke une notification échouée dans la file de lettres mortes
-     *
-     * @param \App\Models\User $user
-     * @param string $title
-     * @param string $body
-     * @param string $type
-     * @param array $data
-     * @param int $totalAttempts Nombre total de tentatives effectuées
-     * @return void
-     */
     private function storeInDeadLetter($user, $title, $body, $type, array $data, int $totalAttempts): void
     {
         try {
@@ -394,9 +279,9 @@ class NotificationService
                 'attempts' => $totalAttempts,
                 'failed_at' => new \DateTime(),
             ]);
-            Log::debug("Notification stockée dans la file de lettres mortes pour user {$user->id}");
+            Log::debug("Notification stockée dans la file d'attente de lettres mortes pour l'utilisateur {$user->id}");
         } catch (\Exception $e) {
-            Log::error("Échec de stockage dans la file de lettres mortes: " . $e->getMessage());
+            Log::error("Échec lors du stockage dans la file d'attente de lettres mortes : " . $e->getMessage());
         }
     }
 }

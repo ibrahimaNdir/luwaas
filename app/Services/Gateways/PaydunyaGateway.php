@@ -24,10 +24,9 @@ use Illuminate\Support\Facades\Log;
  */
 class PaydunyaGateway implements PaymentGatewayInterface
 {
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�══�═�═�═�═
+    
     // CONFIGURATION
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
-
+    
     private function baseUrl(): string
     {
         $mode = config('services.paydunya.mode', 'test');
@@ -46,10 +45,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
         ];
     }
 
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
+    
     // INITIER UN PAIEMENT (checkout invoice)
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
-
+   
     public function initiateCheckout(Transaction $transaction, array $options): array
     {
         $response = Http::withHeaders($this->headers())
@@ -96,10 +94,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
         ];
     }
 
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
+   
     // REVERSEMENT BAILLEUR (PER — direct pay)
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
-
+    
     public function directPayout(string $recipient, float $amount): array
     {
         $response = Http::withHeaders($this->headers())
@@ -152,9 +149,7 @@ class PaydunyaGateway implements PaymentGatewayInterface
         return false;
     }
 
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
-    // NORMALISATION PAYLOAD WEBHOOK
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
+    
 
     /**
      * Convertit le payload PayDunya en format standard Luwaas.
@@ -199,9 +194,7 @@ class PaydunyaGateway implements PaymentGatewayInterface
         ];
     }
 
-    // �� ═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
-    // TAUX PSP (lu depuis commission_rates DB)
-    // �� ═�══�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═�═
+  
 
     /**
      * Récupère le taux PSP depuis la table commission_rates.
@@ -222,8 +215,9 @@ class PaydunyaGateway implements PaymentGatewayInterface
             ->value('rate_percent');
 
         if ($rate === null) {
-            Log::warning("��⚠��️ Taux PSP introuvable pour l'opérateur '{$operator}', fallback à 1.5%");
-            return 0.0150; // fallback sécurisé
+            throw new \App\Exceptions\PspFeeNotFoundException(
+                "Aucun taux PSP trouvé pour gateway=paydunya, operator={$operator}, operation_type=unknown"
+            );
         }
 
         return (float) $rate;
