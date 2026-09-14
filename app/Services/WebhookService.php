@@ -203,7 +203,8 @@ class WebhookService
                     }
 
                     // Mise à jour du score de fiabilité du locataire
-                    $locataire = $bail->locataire ?? null;
+                    
+                   /* $locataire = $bail->locataire ?? null;
 
                     if ($locataire) {
                         try {
@@ -215,7 +216,8 @@ class WebhookService
                                 'erreur' => $e->getMessage(),
                             ]);
                         }
-                    }
+                    } */
+                    
 
                     // Notification + traitement du versement au bailleur via le système asynchrone
                     try {
