@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Locataire;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class AdminLocataireController extends Controller
 {
@@ -25,7 +26,8 @@ class AdminLocataireController extends Controller
 
         $locataire->update(['is_actif' => false]);
 
-        \Log::info("Locataire {$locataire->id} suspendu par admin {$request->user()->id ?? 'unknown'}");
+        $adminId = $request->user()?->id ?? 'unknown';
+Log::info("Locataire {$locataire->id} suspendu par admin {$adminId}");
 
         return response()->json([
             'success' => true,
@@ -43,7 +45,8 @@ class AdminLocataireController extends Controller
 
         $locataire->update(['is_actif' => true]);
 
-        \Log::info("Locataire {$locataire->id} réactivé par admin {$request->user()->id ?? 'unknown'}");
+        $adminId = $request->user()?->id ?? 'unknown';
+Log::info("Locataire {$locataire->id} réactivé par admin {$adminId}");
 
         return response()->json([
             'success' => true,

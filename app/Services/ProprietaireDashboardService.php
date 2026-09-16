@@ -37,13 +37,12 @@ class ProprietaireDashboardService
             'propriete',
             fn($q) => $q->where('proprietaire_id', $ownerId)
         )
-            ->select(
-                DB::raw('COUNT(*) as total_logements'),
-                DB::int'),
-                DB::raw("SUM(CASE WHEN statut_occupe = 'occupe' THEN 1 ELSE 0 END) as total_occupe::int"),
-                DB::raw("SUM(CASE WHEN statut_occupe = 'disponible' THEN 1 ELSE 0 END) as total_disponible::int")
-            )
-            ->first();
+           ->select(
+    DB::raw('COUNT(*) as total_logements'),
+    DB::raw("SUM(CASE WHEN statut_occupe = 'occupe' THEN 1 ELSE 0 END) as total_occupe"),
+    DB::raw("SUM(CASE WHEN statut_occupe = 'disponible' THEN 1 ELSE 0 END) as total_disponible")
+)
+->first();
 
         $tauxOccupation = ($statsLogements->total_logements ?? 0) > 0
             ? round(($statsLogements->total_occupe / $statsLogements->total_logements) * 100, 1)
@@ -107,7 +106,6 @@ class ProprietaireDashboardService
             ? round(($totalRecouvert / $totalARecouvrir) * 100, 1)
             : 0;
 
-<<<<<<< HEAD
         // ✅ NOUVEAU: MÉCANISME #3 - PAIEMENTS MANUELS DU MOIS
         $loyersManuelsDuMois = $basePaiements()
             ->where('statut', 'payé')
@@ -117,14 +115,12 @@ class ProprietaireDashboardService
             })
             ->count();
  
-=======
         // ───────────────────────────────────────────────────────────────────────
         // ABONNEMENT - INFOS D'ABONNEMENT POUR TABLEAU DE BORD
         // ───────────────────────────────────────────────────────────────────────
 
         $subscriptionMessage = $this->getSubscriptionMessage($proprietaire, $subscriptionSummary);
 
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
         // ───────────────────────────────────────────────────────────────────────
         // RETOUR DES DONNÉES
         // ───────────────────────────────────────────────────────────────────────

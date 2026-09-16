@@ -5,15 +5,14 @@ namespace App\Services;
 use App\Models\Bail;
 use App\Models\Demande;
 use App\Models\Logement;
+use App\Models\Paiement;
 use App\Models\Propriete;
-use App\Services\GeocodingService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Services\GeocodingService;
 
 class PropertyService
 {
-<<<<<<< HEAD
     /**
      * Geocoding service instance
      */
@@ -30,18 +29,6 @@ class PropertyService
     // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
     // CRUD
     // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═��
-=======
-    protected $geocoding;
-
-    public function __construct(GeocodingService $geocoding)
-    {
-        $this->geocoding = $geocoding;
-    }
-
-    // ══════════════════════════════════════════════
-    // CRUD
-    // ═════════════════════════════════════════════
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
 
     public function index()
     {
@@ -55,21 +42,7 @@ class PropertyService
 
     public function creerPropriete(array $data, int $proprietaireId): Propriete
     {
-<<<<<<< HEAD
         $propriete = Propriete::create(array_merge($data, [
-=======
-        // Si lat/lng ne sont pas fournis, tenter de les récupérer à partir de l'adresse
-        if ((empty($data['latitude']) || empty($data['longitude'])) && !empty($data['adresse'])) {
-            $coords = $this->geocoding->geocodeAddress($data['adresse']);
-            if ($coords) {
-                $data['latitude']  = $coords['lat'];
-                $data['longitude'] = $coords['lon'];
-            }
-            // Si le géocodage échoue, on laisse les champs vides (null)
-        }
-
-        return Propriete::create(array_merge($data, [
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
             'proprietaire_id' => $proprietaireId,
         ]));
 
@@ -112,27 +85,6 @@ class PropertyService
             $propriete->update($coordinates);
         }
         // If geocoding fails, we keep existing coordinates or leave as null
-    }
-
-    /**
-     * Met à jour une propriété avec géocodage automatique si nécessaire.
-     *
-     * @param Propriete $propriete
-     * @param array $data
-     * @return bool
-     */
-    public function updatePropriete(Propriete $propriete, array $data): bool
-    {
-        // Si lat/lng ne sont pas fournis, tenter de les récupérer à partir de l'adresse
-        if ((empty($data['latitude']) || empty($data['longitude'])) && !empty($data['adresse'])) {
-            $coords = $this->geocoding->geocodeAddress($data['adresse']);
-            if ($coords) {
-                $data['latitude']  = $coords['lat'];
-                $data['longitude'] = $coords['lon'];
-            }
-        }
-
-        return $propriete->update($data);
     }
 
     public function countByOwner(int $ownerId): int
@@ -193,18 +145,10 @@ class PropertyService
         ];
     }
 
-<<<<<<< HEAD
 /*
 
-    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═��═���═
-    // DASHBOARD
-    // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
+    
 
-=======
-    /*
-     * DASHBOARD
-    */
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
     public function dashboard(int $ownerId): array
     {
         $debutMois = Carbon::now()->startOfMonth();
@@ -263,16 +207,10 @@ class PropertyService
         ];
     }
 
-<<<<<<< HEAD
     // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
     // HISTORIQUE & STATS
     // ���� �� �� ═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═�═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═���═
 
-=======
-    /*
-     * HISTORIQUE & STATS
-    */
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
     public function historique6Mois(int $ownerId): array
     {
         $debut = Carbon::now()->subMonths(5)->startOfMonth();
@@ -281,12 +219,12 @@ class PropertyService
         $revenus = Paiement::whereHas('bail.logement.propriete', fn($q) => $q->where('proprietaire_id', $ownerId))
             ->where('statut', 'payé')
             ->where('date_paiement', '>=', $debut)
-            ->selectRaw('YEAR(date_paiement) as annee, MONTH(date_paiement) as mois, SUM(montant) as total')
-            ->groupBy('annee', 'mois')
-            ->get()
-            ->mapWithKeys(function ($item) {
-                return [sprintf('%04d-%02d', $item->annee, $item->mois) => (float) $item->total];
-            });
+            ->select(
+                DB::raw("DATE_FORMAT(date_paiement, '%Y-%m') as mois_key"),
+                DB::raw('SUM(montant) as total')
+            )
+            ->groupBy('mois_key')
+            ->pluck('total', 'mois_key');
 
         $historique = [];
         for ($i = 5; $i >= 0; $i--) {
@@ -301,7 +239,7 @@ class PropertyService
         return $historique;
     }
 
-    public function statsParPropriete(int $ownerId): array
+    public function statsParPropriete(int $ownerId)
     {
         return Propriete::withCount([
             'logements',
@@ -322,10 +260,7 @@ class PropertyService
                 : 0,
         ]);
     }
-<<<<<<< HEAD
 
 */
 
-=======
->>>>>>> 9fbdc60 (Mise à jour économique, payouts, demandes, et ressources)
 }
