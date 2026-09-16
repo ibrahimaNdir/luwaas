@@ -2,7 +2,10 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "The Laravel Framework.",
-    "keywords": ["framework", "laravel"],
+    "keywords": [
+        "framework",
+        "laravel"
+    ],
     "license": "MIT",
     "require": {
         "php": "^8.1",
@@ -10,21 +13,21 @@
         "barryvdh/laravel-dompdf": "^3.1",
         "google/cloud-firestore": "^1.55",
         "guzzlehttp/guzzle": "^7.2",
-        "kreait/firebase-php": "^7.24",
-        "kreait/laravel-firebase": "5.8",
-        "laravel/framework": "^10.0",
-        "laravel/reverb": "^1.10",
-        "laravel/sanctum": "^3.3",
-        "laravel/tinker": "^2.8",
-        "srmklive/paypal": "^3.0"
+        "kreait/firebase-php": "^8.0",
+        "kreait/laravel-firebase": "^7.0",
+        "laravel/framework": "^13.0",
+        "laravel/reverb": "^1.0",
+        "laravel/sanctum": "^4.0",
+        "laravel/tinker": "*",
+        "srmklive/paypal": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9.1",
         "laravel/pint": "^1.0",
         "laravel/sail": "^1.18",
         "mockery/mockery": "^1.4.4",
-        "nunomaduro/collision": "^7.0",
-        "phpunit/phpunit": "^10.0",
+        "nunomaduro/collision": "^8.9",
+        "phpunit/phpunit": "^11.5",
         "spatie/laravel-ignition": "^2.0"
     },
     "autoload": {
@@ -56,7 +59,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-master": "10.x-dev"
+            "dev-master": "13.x-dev"
         },
         "laravel": {
             "dont-discover": []
@@ -69,7 +72,20 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true
         },
-        "disable-tls": true
+        "policy": {
+            "advisories": {
+                "ignore-id": [
+                    "PKSA-m5cs-t1y6-qpcs",
+                    "PKSA-3r5d-mb8f-1qw9",
+                    "PKSA-mdq4-51ck-6kdq",
+                    "PKSA-8qx3-n5y5-vvnd",
+                    "PKSA-q46n-4fdk-zjr4",
+                    "PKSA-qzrn-rnz3-85w1",
+                    "PKSA-w7xr-vk7n-rstm",
+                    "PKSA-zwc5-qtrz-zm1n"
+                ]
+            }
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true
