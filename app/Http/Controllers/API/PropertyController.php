@@ -163,9 +163,7 @@ class PropertyController extends Controller
     }
 
 
-        public function show(Request $request, int $id)
-    {
-        $proprietaireId = $request->user()->proprietaire->id;
+      
 
     public function show(Request $request, int $id)
     {

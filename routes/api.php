@@ -26,6 +26,7 @@ use App\Http\Controllers\API\Admin\AdminLocataireController;
 use App\Http\Controllers\API\TicketController;
 
 use App\Http\Controllers\API\PayoutController; // Added
+use App\Http\Controllers\API\PayoutMethodController;
 
 use App\Models\User;
 use App\Services\NotificationService;
